@@ -3,7 +3,7 @@
 #define CONV2D_H
 
 #include <vector>
-#include "resample.h"  // Include resample.h for Downsample2d class
+#include "resampling.h"  // Include resample.h for Downsample2d class
 
 // Class for 2D Convolution with a stride of 1
 class Conv2d_stride1 {

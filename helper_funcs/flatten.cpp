@@ -1,4 +1,5 @@
 #include <Eigen/Dense>
+#include <unsupported/Eigen/CXX11/Tensor>
 
 using namespace Eigen;
 
@@ -22,8 +23,13 @@ public:
         MatrixXd Z(N, flattened_size);
 
         for (int n = 0; n < N; ++n) {
-            Map<MatrixXd> flattened(&A(n, 0, 0), 1, flattened_size);
-            Z.row(n) = flattened;
+            int index = 0; // Index for flattened row in MatrixXd
+            for (int c = 0; c < Cin; ++c) {
+                for (int w = 0; w < Win; ++w) {
+                    Z(n, index) = A(n, c, w); 
+                    index++;
+                }
+            }
         }
 
         return Z;
@@ -40,10 +46,11 @@ public:
         Tensor<double, 3> dLdA(N, Cin, Win);
 
         for (int n = 0; n < N; ++n) {
-            Map<const MatrixXd> reshaped(dLdZ.row(n).data(), Cin, Win);
+        int index = 0;  // Track the index in the flattened row
             for (int c = 0; c < Cin; ++c) {
                 for (int w = 0; w < Win; ++w) {
-                    dLdA(n, c, w) = reshaped(c, w);
+                    dLdA(n, c, w) = dLdZ(n, index);
+                    index++;
                 }
             }
         }

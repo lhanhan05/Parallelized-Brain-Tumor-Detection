@@ -6,6 +6,7 @@ public:
     std::vector<std::vector<double>> W;  // Weights matrix
     std::vector<std::vector<double>> b;  // Bias matrix
     std::vector<std::vector<double>> Ones;  // Ones matrix for adding bias
+    std::vector<std::vector<double>> Atemp;
 
     // bool debug;
 
@@ -18,6 +19,7 @@ public:
 
     // Forward pass function
     std::vector<std::vector<double>> forward(const std::vector<std::vector<double>>& A) {
+        Atemp = A;
         int N = A.size();  // Number of samples
         Ones = std::vector<std::vector<double>>(N, std::vector<double>(1, 1.0));  // Fill Ones with 1's for each row
 
@@ -56,7 +58,7 @@ public:
         for (int i = 0; i < N; ++i) {
             for (int j = 0; j < C1; ++j) {
                 for (int k = 0; k < W[0].size(); ++k) {
-                    dLdW[j][k] += dLdZ[i][j] * Ones[i][0] * A[i][k];
+                    dLdW[j][k] += dLdZ[i][j] * Ones[i][0] * Atemp[i][k];
                 }
                 dLdb[j][0] += dLdZ[i][j] * Ones[i][0];
             }

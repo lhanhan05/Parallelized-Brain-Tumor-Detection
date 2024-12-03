@@ -1,7 +1,7 @@
 #include "Conv1d.h"
-#include <unsupported/Eigen/CXX11/Tensor>
 #include <algorithm>
 
+using namespace Eigen;
 // Implementation of Conv1d_stride1 constructor
 Conv1d_stride1::Conv1d_stride1(int in_channels, int out_channels, int kernel_size)
     : in_channels(in_channels), out_channels(out_channels), kernel_size(kernel_size),
@@ -41,14 +41,30 @@ Tensor<double, 3> Conv1d_stride1::forward(const Tensor<double, 3> &A) {
     Tensor<double, 3> Z(N, Cout, Wout);
     Z.setZero();
 
-    for (int i = 0; i < Wout; ++i) {
-        for (int n = 0; n < N; ++n) {
-            for (int co = 0; co < Cout; ++co) {
-                Z(n, co, i) = (A.chip(n, 0).slice(Eigen::array<long, 3>({0, 0, i}), Eigen::array<long, 3>({in_channels, 1, k})) * W.chip(co, 0)).sum() + b(co);
+    // Perform convolution
+    for (int n = 0; n < N; ++n) {
+        for (int co = 0; co < Cout; ++co) {
+            for (int i = 0; i < Wout; ++i) {
+                Tensor<double, 3> input_slice = A.chip(n, 0).slice(Eigen::array<long, 3>({0, 0, i}), Eigen::array<long, 3>({in_channels, 1, kernel_size}));
+                Tensor<double, 3> result = input_slice * W.chip(co, 0);
+                Z(n, co, i) = sum_tensor(result) + b(co);
             }
         }
     }
+
     return Z;
+}
+
+double sum_tensor(Tensor<double, 3> input){
+    double sum_result = 0.0;
+    for (int i = 0; i < input.dimension(0); ++i) {
+        for (int j = 0; j < input.dimension(1); ++j) {
+            for (int k = 0; k < input.dimension(2); ++k) {
+                sum_result += input(i, j, k);  // Sum each element of the tensor
+            }
+        }
+    }
+    return sum_result;
 }
 
 // Backward function for Conv1d_stride1
@@ -61,7 +77,7 @@ Tensor<double, 3> Conv1d_stride1::backward(const Tensor<double, 3> &dLdZ) {
     dLdb.setZero();
     for (int n = 0; n < dLdZ.dimension(0); ++n) {
         for (int co = 0; co < out_channels; ++co) {
-            dLdb(co) += dLdZ.chip(n, 0).chip(co, 1).sum();
+            dLdb(co) += sum_tensor(dLdZ.chip(n, 0).chip(co, 1)); // Sum over batch and width dimension
         }
     }
 
