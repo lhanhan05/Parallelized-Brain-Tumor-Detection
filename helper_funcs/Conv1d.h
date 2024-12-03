@@ -1,8 +1,8 @@
 #ifndef CONV1D_H
 #define CONV1D_H
 
-#include <Eigen/Dense>
-#include <unsupported/Eigen/CXX11/Tensor>
+#include "eigen/Eigen/Dense"
+#include "eigen/unsupported/Eigen/CXX11/Tensor"
 #include "resampling.h"  // Include the helper functions from your provided file
 
 using namespace Eigen;
