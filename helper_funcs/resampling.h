@@ -1,8 +1,8 @@
 #ifndef RESAMPLING_H
 #define RESAMPLING_H
 
-#include <Eigen/Dense>
-#include <unsupported/Eigen/CXX11/Tensor>
+#include "eigen/Eigen/Dense"
+#include "eigen/unsupported/Eigen/CXX11/Tensor"
 
 using namespace Eigen;
 
