@@ -1,135 +1,258 @@
-#include "Conv1d.h"
-#include <algorithm>
+#include <iostream>
+#include <vector>
+#include <random>
+#include <Eigen/Dense>
+#include <unsupported/Eigen/CXX11/Tensor>
 
 using namespace Eigen;
-// Implementation of Conv1d_stride1 constructor
-Conv1d_stride1::Conv1d_stride1(int in_channels, int out_channels, int kernel_size)
-    : in_channels(in_channels), out_channels(out_channels), kernel_size(kernel_size),
-      W(out_channels, in_channels, kernel_size), b(out_channels) {
-    dLdW = Tensor<double, 3>(out_channels, in_channels, kernel_size);
-    dLdb = Tensor<double, 1>(out_channels);
-}
 
-// Weight initialization (optional)
-void Conv1d_stride1::initialize_weights(std::function<void(Tensor<double, 3>&)> weight_init_fn) {
-    if (weight_init_fn) {
-        weight_init_fn(W);
-    } else {
-        // Default initialization: normal distribution
-        W.setRandom();
-    }
-}
+class Conv {
+public:
+    // Constructor for the Convolution Layer
+    Conv(const std::tuple<int, int, int>& input_shape, 
+         const std::tuple<int, int, int>& filter_shape, 
+         int rand_seed = 0)
+    {
+        // Unpacking input shape and filter shape
+        auto [num_filters, k_height, k_width] = filter_shape;
+        auto [C, H, W] = input_shape;
 
-// Bias initialization (optional)
-void Conv1d_stride1::initialize_bias(std::function<void(Tensor<double, 1>&)> bias_init_fn) {
-    if (bias_init_fn) {
-        bias_init_fn(b);
-    } else {
-        // Default initialization: zeros
-        b.setZero();
-    }
-}
+        // Initialize layer dimensions
+        this->num_filters = num_filters;
+        this->C = C;
+        this->H = H;
+        this->W = W;
+        this->k_height = k_height;
+        this->k_width = k_width;
 
-// Forward function for Conv1d_stride1
-Tensor<double, 3> Conv1d_stride1::forward(const Tensor<double, 3> &A) {
-    this->A = A;
-    int N = A.dimension(0);  // Batch size
-    int Cout = W.dimension(0);  // Output channels
-    int Wout = A.dimension(2) - W.dimension(2) + 1;  // Output width
-    int k = kernel_size;
+        // random weight initialization
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<> dist(-std::sqrt(6.0 / ((num_filters + C) * k_height * k_width)), 
+                                              std::sqrt(6.0 / ((num_filters + C) * k_height * k_width)));
 
-    Tensor<double, 3> Z(N, Cout, Wout);
-    Z.setZero();
-
-    // Perform convolution
-    for (int n = 0; n < N; ++n) {
-        for (int co = 0; co < Cout; ++co) {
-            for (int i = 0; i < Wout; ++i) {
-                Tensor<double, 3> input_slice = A.chip(n, 0).slice(Eigen::array<long, 3>({0, 0, i}), Eigen::array<long, 3>({in_channels, 1, kernel_size}));
-                Tensor<double, 3> result = input_slice * W.chip(co, 0);
-                Z(n, co, i) = sum_tensor(result) + b(co);
-            }
-        }
-    }
-
-    return Z;
-}
-
-double sum_tensor(Tensor<double, 3> input){
-    double sum_result = 0.0;
-    for (int i = 0; i < input.dimension(0); ++i) {
-        for (int j = 0; j < input.dimension(1); ++j) {
-            for (int k = 0; k < input.dimension(2); ++k) {
-                sum_result += input(i, j, k);  // Sum each element of the tensor
-            }
-        }
-    }
-    return sum_result;
-}
-
-// Backward function for Conv1d_stride1
-Tensor<double, 3> Conv1d_stride1::backward(const Tensor<double, 3> &dLdZ) {
-    int Wout = dLdZ.dimension(2);
-    int k = W.dimension(2);
-    int Win = Wout + k - 1;
-
-    // Calculate dLdb
-    dLdb.setZero();
-    for (int n = 0; n < dLdZ.dimension(0); ++n) {
-        for (int co = 0; co < out_channels; ++co) {
-            dLdb(co) += sum_tensor(dLdZ.chip(n, 0).chip(co, 1)); // Sum over batch and width dimension
-        }
-    }
-
-    // Calculate dLdW
-    dLdW.setZero();
-    for (int ci = 0; ci < in_channels; ++ci) {
-        for (int co = 0; co < out_channels; ++co) {
-            for (int i = 0; i < Wout; ++i) {
-                dLdW.chip(co, 0).chip(ci, 0) += (dLdZ.chip(0, 0).chip(co, 1).slice(Eigen::array<long, 3>({0, i, 0}), Eigen::array<long, 3>({1, 1, k})));
-            }
-        }
-    }
-
-    // Calculate dLdA
-    Tensor<double, 3> dLdA(dLdZ.dimension(0), in_channels, Win);
-    dLdA.setZero();
-    Tensor<double, 3> W_flipped = W.reverse(Eigen::array<bool, 3>({false, false, true}));
-
-    for (int n = 0; n < dLdZ.dimension(0); ++n) {
-        for (int ci = 0; ci < in_channels; ++ci) {
-            for (int co = 0; co < out_channels; ++co) {
-                for (int i = 0; i < Win; ++i) {
-                    dLdA.chip(n, 0).chip(ci, 0) += (dLdZ.chip(n, 0).chip(co, 1).slice(Eigen::array<long, 3>({0, i, 0}), Eigen::array<long, 3>({1, 1, k})));
+        weights = Tensor<float, 4>(num_filters, C, k_height, k_width);
+        for (int i = 0; i < num_filters; ++i) {
+            for (int c = 0; c < C; ++c) {
+                for (int h = 0; h < k_height; ++h) {
+                    for (int w = 0; w < k_width; ++w) {
+                        weights(i, c, h, w) = dist(gen);
+                    }
                 }
             }
         }
+
+        weights_momentum = Tensor<float, 4>(num_filters, C, k_height, k_width);
+        weights_momentum.setZero();
+        biases = Tensor<float, 1>(num_filters);
+        biases.setZero();
+        biases_momentum = Tensor<float, 1>(num_filters);
+        biases_momentum.setZero();
     }
 
-    return dLdA;
-}
+    // Forward pass of convolution
+    Tensor<float, 4> forward(const Tensor<float, 4>& inputs, int stride = 1, int pad = 2)
+    {
+        this->pad = pad;
+        this->stride = stride;
+        this->N = inputs.dimension(0);
+        this->X = inputs;
 
-// Implementation of Conv1d constructor
-Conv1d::Conv1d(int in_channels, int out_channels, int kernel_size, int stride, int padding)
-    : stride(stride), pad(padding), conv1d_stride1(in_channels, out_channels, kernel_size), downsample1d(stride) {
-}
+        Tensor<float, 2> input_cols = im2col(inputs, k_height, k_width, pad, stride);
 
-// Forward function for Conv1d
-Tensor<double, 3> Conv1d::forward(const Tensor<double, 3> &A) {
-    Tensor<double, 3> padded_A = A.pad(Eigen::array<long, 3>({0, 0, pad}));
-    Tensor<double, 3> mask = conv1d_stride1.forward(padded_A);
-    Tensor<double, 3> Z = downsample1d.forward(mask);
-    return Z;
-}
+        weights_reshape(num_filters, C * k_height * k_width);
+        for (int i = 0; i < num_filters; ++i) {
+            for (int c = 0; c < C; ++c) {
+                for (int h = 0; h < k_height; ++h) {
+                    for (int w = 0; w < k_width; ++w) {
+                        weights_reshape(i, c * k_height * k_width + h * k_width + w) = weights(i, c, h, w);
+                    }
+                }
+            }
+        }
 
-// Backward function for Conv1d
-Tensor<double, 3> Conv1d::backward(const Tensor<double, 3> &dLdZ) {
-    Tensor<double, 3> mask = downsample1d.backward(dLdZ);
-    Tensor<double, 3> dLdA = conv1d_stride1.backward(mask);
+        out_width = (W + 2 * pad - k_width) / stride + 1;
+        out_height = (H + 2 * pad - k_height) / stride + 1;
 
-    if (pad != 0) {
-        dLdA = dLdA.slice(Eigen::array<long, 3>({0, 0, pad}), Eigen::array<long, 3>({dLdA.dimension(0), dLdA.dimension(1), dLdA.dimension(2) - 2 * pad}));
+        Tensor<float, 2> output = weights_reshape.contract(input_cols, array<Index, 2>{0, 1});
+        output = output + biases.broadcast(array<Index, 1>{0});  // Broadcasting biases
+        
+        Tensor<float, 4> output_reshape(num_filters, out_height, out_width, N);
+        for (int n = 0; n < N; ++n) {
+            for (int f = 0; f < num_filters; ++f) {
+                for (int h = 0; h < out_height; ++h) {
+                    for (int w = 0; w < out_width; ++w) {
+                        output_reshape(f, h, w, n) = output(f, n * out_height * out_width + h * out_width + w);
+                    }
+                }
+            }
+        }
+        
+        return output_reshape;
     }
 
-    return dLdA;
-}
+    // Backward pass of convolution
+    std::vector<Tensor<float, 4>> backward(const Tensor<float, 4>& dloss)
+    {
+        Tensor<float, 4> dloss_transpose = dloss.shuffle(array<int, 4>{1, 2, 3, 0});
+        Tensor<float, 2> dloss_reshape(num_filters, out_height * out_width * N);
+        for (int f = 0; f < num_filters; ++f) {
+            for (int n = 0; n < N; ++n) {
+                for (int h = 0; h < out_height; ++h) {
+                    for (int w = 0; w < out_width; ++w) {
+                        dloss_reshape(f, n * out_height * out_width + h * out_width + w) = dloss_transpose(f, h, w, n);
+                    }
+                }
+            }
+        }
+
+        Tensor<float, 2> mul_output = weights_reshape.contract(dloss_reshape, array<Index, 2>{1, 0});
+        Tensor<float, 4> grad_inputs = im2col_bw(mul_output, array<int, 4>{N, C, H, W}, k_height, k_width, pad, stride);
+
+        Tensor<float, 2> x_col = im2col(X, k_height, k_width, pad, stride);
+        Tensor<float, 2> grad_weight_pre = dloss_reshape.contract(x_col, array<Index, 2>{1, 0});
+        
+        Tensor<float, 4> grad_weights(num_filters, C, k_height, k_width);
+        for (int f = 0; f < num_filters; ++f) {
+            for (int c = 0; c < C; ++c) {
+                for (int h = 0; h < k_height; ++h) {
+                    for (int w = 0; w < k_width; ++w) {
+                        grad_weights(f, c, h, w) = grad_weight_pre(f, c * k_height * k_width + h * k_width + w);
+                    }
+                }
+            }
+        }
+
+        Tensor<float, 1> grad_biases = dloss_reshape.sum(array<int, 1>{1});
+        
+        return {grad_weights, grad_biases, grad_inputs};
+    }
+
+    void update(float learning_rate = 0.01, float momentum_coeff = 0.5)
+    {
+        weights_momentum = momentum_coeff * weights_momentum + grad_weights / N;
+        biases_momentum = momentum_coeff * biases_momentum + grad_biases / N;
+
+        weights -= learning_rate * weights_momentum;
+        biases -= learning_rate * biases_momentum;
+    }
+
+    std::pair<Tensor<float, 4>, Tensor<float, 1>> get_wb_conv() const
+    {
+        return {weights, biases};
+    }
+
+private:
+    int num_filters, C, H, W, k_height, k_width, N;
+    int out_width, out_height, pad, stride;
+    Tensor<float, 4> weights, weights_momentum, grad_weights;
+    Tensor<float, 1> biases, biases_momentum, grad_biases;
+    Tensor<float, 4> X;
+    Tensor<float, 4> grad_inputs;
+    Tensor<float, 2> weights_reshape;
+
+    Tensor<float, 2> im2col(const Tensor<float, 4>& X, int k_height, int k_width, int padding = 1, int stride = 1) {
+        //  X shape: [N, C, H, W]
+        int N = X.dimension(0); // Batch size
+        int C = X.dimension(1); // Number of channels
+        int H = X.dimension(2); // Height of input image
+        int W = X.dimension(3); // Width of input image
+
+        int out_height = (H + 2 * padding - k_height) / stride + 1;
+        int out_width = (W + 2 * padding - k_width) / stride + 1;
+
+        Tensor<float, 2> out(C * k_height * k_width, N * out_height * out_width);
+
+        Tensor<float, 4> padded_X(N, C, H + 2 * padding, W + 2 * padding);
+        padded_X.setZero();
+        padded_X.slice(array<int, 4>{0, 0, padding, padding}, array<int, 4>{N, C, H, W}) = X;
+
+        int col_index = 0;
+        for (int n = 0; n < N; ++n) {
+            for (int c = 0; c < C; ++c) {
+                for (int h = 0; h < out_height; ++h) {
+                    for (int w = 0; w < out_width; ++w) {
+                        for (int kh = 0; kh < k_height; ++kh) {
+                            for (int kw = 0; kw < k_width; ++kw) {
+                                int pad_h = h * stride + kh - padding;
+                                int pad_w = w * stride + kw - padding;
+                                if (pad_h >= 0 && pad_h < H && pad_w >= 0 && pad_w < W) {
+                                    out(c * k_height * k_width + kh * k_width + kw, col_index) = padded_X(n, c, pad_h, pad_w);
+                                } else {
+                                    out(c * k_height * k_width + kh * k_width + kw, col_index) = 0;
+                                }
+                            }
+                        }
+                        ++col_index;
+                    }
+                }
+            }
+        }
+        
+        return out;
+    }
+
+    Tensor<float, 4> im2col_bw(const Tensor<float, 2>& grad_X_col, const Eigen::array<int, 4>& X_shape,
+                           int k_height, int k_width, int padding = 1, int stride = 1) {
+        // Return gradient w.r.t. input tensor
+        int N = X_shape[0]; // Batch size
+        int C = X_shape[1]; // Number of channels
+        int H = X_shape[2]; // Height of input image
+        int W = X_shape[3]; // Width of input image
+
+        int out_height = (H + 2 * padding - k_height) / stride + 1;
+        int out_width = (W + 2 * padding - k_width) / stride + 1;
+
+        Tensor<float, 6> grad_reshape(C, k_height, k_width, out_height, out_width, N);
+        grad_reshape.setZero(); 
+
+        Tensor<float, 2> grad_X_col_reshaped_orig = grad_X_col.reshape(Eigen::array<int, 2>{C * k_height * k_width, N * out_height * out_width});
+        array<int, 2> transpose_shuffling({1, 0});
+        
+        Tensor<float, 2> grad_X_col_reshaped = grad_X_col_reshaped_orig.shuffle(transpose_shuffling);
+
+        for (int i = 0; i < C * k_height * k_width; ++i) {
+            for (int j = 0; j < N * out_height * out_width; ++j) {
+                int c = i / (k_height * k_width);
+                int kh = (i % (k_height * k_width)) / k_width;
+                int kw = i % k_width;
+
+                int n = j / (out_height * out_width);
+                int h = (j % (out_height * out_width)) / out_width;
+                int w = j % out_width;
+
+                grad_reshape(c, kh, kw, h, w, n) = grad_X_col_reshaped(i, j);
+            }
+        }
+
+        Tensor<float, 4> grad_input(N, C, H + 2 * padding, W + 2 * padding);
+        grad_input.setZero();
+
+        for (int n = 0; n < N; ++n) {
+            for (int c = 0; c < C; ++c) {
+                for (int kh = 0; kh < k_height; ++kh) {
+                    for (int kw = 0; kw < k_width; ++kw) {
+                        for (int h = 0; h < out_height; ++h) {
+                            for (int w = 0; w < out_width; ++w) {
+                                int pad_h = h * stride + kh - padding;
+                                int pad_w = w * stride + kw - padding;
+
+                                if (pad_h >= 0 && pad_h < H && pad_w >= 0 && pad_w < W) {
+                                    grad_input(n, c, pad_h + padding, pad_w + padding) += grad_reshape(c, kh, kw, h, w, n);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Tensor<float, 4> grad_input_no_pad(N, C, H, W);
+        grad_input_no_pad.setZero();
+        grad_input_no_pad.slice(array<int, 4>{0, 0, 0, 0}, array<int, 4>{N, C, H, W}) = grad_input.slice(array<int, 4>{0, 0, padding, padding}, array<int, 4>{N, C, H, W});
+
+        return grad_input_no_pad;
+    }
+
+
+};

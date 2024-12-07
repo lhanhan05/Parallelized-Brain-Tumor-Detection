@@ -157,7 +157,11 @@ public:
             std::vector<std::vector<float>> J(C, std::vector<float>(C, 0.0f));
             for (size_t m = 0; m < C; ++m) {
                 for (size_t n = 0; n < C; ++n) {
-                    J[m][n] = A[i][m] * (1 - A[i][m]) if (m == n) else -A[i][m] * A[i][n];
+                    if(m == n){
+                        J[m][n] = A[i][m] * (1 - A[i][m]);
+                    }else{
+                        J[m][n] =  -1 * A[i][m] * A[i][n];
+                    }
                 }
             }
             for (size_t j = 0; j < C; ++j) {
