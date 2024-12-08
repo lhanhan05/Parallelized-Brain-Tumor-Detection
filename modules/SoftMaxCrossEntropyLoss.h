@@ -1,0 +1,19 @@
+#include <Eigen/Dense>
+#include <unsupported/Eigen/CXX11/Tensor>
+using namespace Eigen;
+
+class SoftMaxCrossEntropyLoss {
+public:
+    SoftMaxCrossEntropyLoss() = default;
+
+    float forward(const Tensor<float, 2>& logits, const Tensor<float, 2>& labels, bool get_predictions = false);
+
+    Tensor<float, 2> backward();
+
+    float getAccu();
+
+private:
+    Tensor<float, 2> softmax;      // Softmax values
+    Tensor<float, 2> labels;       // True labels
+    Tensor<float, 2> contrast;     // Contrast loss
+};
