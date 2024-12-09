@@ -30,7 +30,7 @@ public:
         pool_w_out = (conv_w_out - pool_w) / pool_stride + 1;
         pool_h_out = (conv_h_out - pool_h) / pool_stride + 1;
 
-        conv = Conv(input_shape, filter_shape);
+        conv = Conv(input_shape, filter_shape, 0);
         relu = ReLU();
         maxpool = MaxPool(pool_w, pool_h, pool_stride);
         flatten = Flatten();
@@ -38,7 +38,7 @@ public:
         loss = SoftMaxCrossEntropyLoss();
     }
 
-    std::pair<float, std::vector<int>> forward(const Tensor<double, 4>& inputs, 
+    std::pair<float, Tensor<int, 1>> forward(const Tensor<double, 4>& inputs, 
                                                const Tensor<double, 2>& y_labels) 
     {
         Tensor<double, 4> conv_out = conv.forward(inputs);
@@ -48,15 +48,14 @@ public:
         Tensor<double, 2> linear_out = linear.forward(flatten_out);
 
         float loss_val = loss.forward(linear_out, y_labels);
-        std::vector<int> preds = loss.get_predictions(linear_out);
+        Tensor<int, 1> preds = loss.getPreds();
 
         return {loss_val, preds};
     }
 
-    void backward(const Tensor<double, 4>& inputs, 
-                  const Tensor<double, 2>& y_labels) 
+    void backward() 
     {
-        Tensor<double, 2> loss_grad = loss.backward(inputs, y_labels);
+        Tensor<double, 2> loss_grad = loss.backward();
 
         Tensor<double, 3> linear_grad = linear.backward(loss_grad)[2];
         Tensor<double, 4> flatten_grad = flatten.backward(linear_grad);

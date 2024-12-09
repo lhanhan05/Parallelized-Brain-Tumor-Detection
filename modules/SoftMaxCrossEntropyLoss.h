@@ -10,6 +10,8 @@ public:
 
     Tensor<float, 2> backward();
 
+    Tensor<int, 1> getPreds();
+
     float getAccu();
 
 private:
