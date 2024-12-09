@@ -28,8 +28,9 @@ std::pair<float, Tensor<int, 1>> Conv1dModel::forward(const Tensor<float, 4>& in
                                                       const Tensor<float, 2>& y_labels) 
 {
     Tensor<float, 4> conv_out = conv.forward(inputs);
-    Tensor<float, 4> acti_out = relu.forward(conv_out);
-    Tensor<float, 4> maxpool_out = maxpool.forward(acti_out);
+    Tensor<float, 4> relu_out = relu.forward(conv_out);
+    Tensor<float, 4> sigmoid_out = sigmoid.forward(relu_out);
+    Tensor<float, 4> maxpool_out = maxpool.forward(sigmoid_out);
     Tensor<float, 3> flatten_out = flatten.forward(maxpool_out);
     Tensor<float, 2> linear_out = linear.forward(flatten_out);
 
@@ -44,7 +45,8 @@ void Conv1dModel::backward() {
     Tensor<float, 3> linear_grad = linear.backward(loss_grad)[0];
     Tensor<float, 4> flatten_grad = flatten.backward(linear_grad);
     Tensor<float, 4> maxpool_grad = maxpool.backward(flatten_grad);
-    Tensor<float, 4> relu_grad = relu.backward(maxpool_grad);
+    Tensor<float, 4> sigmoid_grad = sigmoid.backward(maxpool_grad);
+    Tensor<float, 4> relu_grad = relu.backward(sigmoid_grad);
     conv.backward(relu_grad);
 }
 

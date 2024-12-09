@@ -10,6 +10,7 @@
 #include "modules/Flatten.h"
 #include "modules/LinearLayer.h"
 #include "modules/SoftMaxCrossEntropyLoss.h"
+#include "modules/Sigmoid.h"
 
 using namespace Eigen;
 
@@ -30,10 +31,11 @@ private:
     int out_dim, conv_w_out, conv_h_out, pool_w_out, pool_h_out;
     Conv conv;
     ReLU relu;
+    Sigmoid sigmoid;
     MaxPool maxpool;
     Flatten flatten;
     LinearLayer linear;
     SoftMaxCrossEntropyLoss loss;
 };
 
-#endif // CONV1DMODEL_H
+#endif
