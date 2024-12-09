@@ -29,8 +29,6 @@ public:
         this->inputs = inputs;
         Tensor<float, 2> input_weight_prod = inputs.contract(weights, array<int, 2>({1, 0}));
 
-        // Tensor<float, 2> output = input_weight_prod + biases.broadcast(array<int, 2>({0, inputs.dimension(0)}));
-
         Eigen::array<int, 2> broadcast_dims = {0, static_cast<int>(inputs.dimension(0))};
         Tensor<float, 2> output = input_weight_prod + biases.broadcast(broadcast_dims);
         return output;

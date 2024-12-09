@@ -10,8 +10,8 @@ using namespace Im2Col;
 
 class Conv {
 public:
-    Conv(const std::tuple<int, int, int>& input_shape, 
-         const std::tuple<int, int, int>& filter_shape, 
+    Conv(std::tuple<int, int, int>& input_shape, 
+        std::tuple<int, int, int>& filter_shape, 
          int rand_seed = 0);
 
     Tensor<float, 4> forward(const Tensor<float, 4>& inputs, int stride = 1, int pad = 2);

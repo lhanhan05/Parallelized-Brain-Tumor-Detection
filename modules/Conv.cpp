@@ -10,8 +10,8 @@ using namespace Im2Col;
 
 class Conv {
 public:
-    Conv(const std::tuple<int, int, int>& input_shape, 
-         const std::tuple<int, int, int>& filter_shape, 
+    Conv(std::tuple<int, int, int>& input_shape, 
+        std::tuple<int, int, int>& filter_shape, 
          int rand_seed = 0)
     {
         // Unpacking input shape and filter shape
