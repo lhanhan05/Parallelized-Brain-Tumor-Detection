@@ -8,7 +8,7 @@ public:
         this->batch_size = batch_size;
     }
 
-    void load_images(const std::string& folder_path) {
+    void loadImages(const std::string& folder_path) {
         vector<String> filenames;
         glob(folder_path, filenames, false);
 
@@ -35,7 +35,7 @@ public:
         }
     }
 
-    void convert_images_to_tensor(const std::vector<cv::Mat>& images) {
+    void convertImagesToTensor(const std::vector<cv::Mat>& images) {
         int N = images.size();
         int C = 1;
         int H = images[0].rows;
