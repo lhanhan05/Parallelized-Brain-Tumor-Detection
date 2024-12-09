@@ -3,25 +3,38 @@ using namespace cv;
 
 class Dataset {
 public:
-    Dataset(const std::string& folder_path, int batch_size) {
-        load_images(folder_path);
+    Dataset(vector<std::string> folder_paths, int batch_size) {
+        load_images(folder_paths);
+        convertImagesToTensor();
         this->batch_size = batch_size;
     }
 
-    void loadImages(const std::string& folder_path) {
-        vector<String> filenames;
-        glob(folder_path, filenames, false);
+    void loadImages(vector<std::string> folder_paths) {
+        int N = 0;
+        for(auto folder_path : folder_paths){
+            vector<String> filenames;
+            glob(folder_path, filenames, false);
 
-        int N = filenames.size();
+            N += filenames.size();
+            
+
+            for (const auto& filename : filenames) {
+                Mat img = imread(filename, IMREAD_COLOR);
+                if (!img.empty()) {
+                    cvtColor(img, img, COLOR_BGR2GRAY);
+                    resize(img, img, Size(32, 32));
+                    images.push_back(img);
+                }
+            }
+        }
+
         labels = Tensor<int, 2>(N, 1);
+        int i = 0;
+        for(auto folder_path : folder_paths){
+            vector<String> filenames;
+            glob(folder_path, filenames, false);
 
-        for (const auto& filename : filenames) {
-            Mat img = imread(filename, IMREAD_COLOR);
-            if (!img.empty()) {
-                cvtColor(img, img, COLOR_BGR2GRAY);
-                resize(img, img, Size(32, 32));
-                images.push_back(img);
-
+            for (const auto& filename : filenames) {
                 if (filename.find("G") == 0) {
                     labels(i, 0) = 0;
                 } else if (filename.find("M") == 0){
@@ -31,11 +44,12 @@ public:
                 } else{ // P
                     labels(i, 0) = 3;
                 }
+                i+=1;
             }
         }
     }
 
-    void convertImagesToTensor(const std::vector<cv::Mat>& images) {
+    void convertImagesToTensor() {
         int N = images.size();
         int C = 1;
         int H = images[0].rows;
