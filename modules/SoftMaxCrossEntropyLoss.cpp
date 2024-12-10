@@ -3,7 +3,8 @@
 #include <algorithm>
 #include <unordered_map>
 
-Tensor<int, 1> manualArgmax(Tensor<float, 2> input){
+template <typename T>
+Tensor<int, 1> manualArgmax(const Tensor<T, 2>& input) {
     Tensor<int, 1> argmaxOutput(input.dimension(0));
 
     for (int row = 0; row < input.dimension(0); ++row) {
@@ -36,7 +37,7 @@ float SoftMaxCrossEntropyLoss::forward(const Tensor<float, 2>& logits, const Ten
     Tensor<float, 2> log_softmax = softmax.log();
 
     // Calculate cross-entropy loss
-    Tensor<float, 2> loss_prod = log_softmax * labels;
+    Tensor<float, 2> loss_prod = log_softmax * labels.cast<float>();
     float loss_sum = 0;
 
     for (int i = 0; i < loss_prod.dimension(0); ++i) {
@@ -95,8 +96,8 @@ Tensor<int, 1> SoftMaxCrossEntropyLoss::getPreds(){
 }
 
 Tensor<float, 2> SoftMaxCrossEntropyLoss::backward() {
-    Tensor<float, 2> softmax_back = softmax - labels.shuffle(array<int, 2>({1, 0}));
-    return 0.8f * softmax_back + 0.2f * contrast;
+    Tensor<float, 2> softmax_back = softmax - labels.cast<float>();
+    return softmax_back;
 }
 
 
