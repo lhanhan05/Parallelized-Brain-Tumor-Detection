@@ -32,7 +32,7 @@ void Dataset::loadImages(vector<string>& folder_paths) {
     int width, height, channels;
     unsigned char* img_data = stbi_load("./Data/glioma/G_1.jpg", &width, &height, &channels, 0);
     images = Tensor<float, 4>(filenames.size(), 3, width, height);
-    labels = Tensor<int, 2>(filenames.size(), 1);
+    labels = Tensor<int, 2>(filenames.size(), 4);
     int idx = 0;
     for (const auto& filename : filenames) {
 
@@ -50,15 +50,18 @@ void Dataset::loadImages(vector<string>& folder_paths) {
                 images(idx, 2, x, y) = b;
             }
 
-
+            labels(idx, 0) = 0;
+            labels(idx, 1) = 0;
+            labels(idx, 2) = 0;
+            labels(idx, 3) = 0;
             if (filename.find("G") == 0) {
-                labels(idx, 0) = 0;
-            } else if (filename.find("M") == 0) {
                 labels(idx, 0) = 1;
+            } else if (filename.find("M") == 0) {
+                labels(idx, 1) = 1;
             } else if (filename.find("N") == 0) {
-                labels(idx, 0) = 2;
+                labels(idx, 2) = 1;
             } else { // P
-                labels(idx, 0) = 3;
+                labels(idx, 3) = 1;
             }
             stbi_image_free(img_data);
             idx+=1;

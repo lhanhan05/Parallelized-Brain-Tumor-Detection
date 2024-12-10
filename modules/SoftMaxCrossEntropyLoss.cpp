@@ -3,6 +3,23 @@
 #include <algorithm>
 #include <unordered_map>
 
+Tensor<int, 1> manualArgmax(Tensor<float, 2> input){
+    Tensor<int, 1> argmaxOutput(input.dimension(0));
+
+    for (int row = 0; row < input.dimension(0); ++row) {
+        float max_value = input(row, 0);
+        int max_index = 0;
+        for (int col = 1; col < input.dimension(1); ++col) {
+            if (input(row, col) > max_value) {
+                max_value = input(row, col);
+                max_index = col;
+            }
+        }
+        argmaxOutput(row) = max_index;
+    }
+    return argmaxOutput;
+}
+
 float SoftMaxCrossEntropyLoss::forward(const Tensor<float, 2>& logits, const Tensor<float, 2>& labels) {
     // Transpose logits and labels
     Tensor<float, 2> logits_transposed = logits.shuffle(array<int, 2>({1, 0}));
@@ -13,7 +30,7 @@ float SoftMaxCrossEntropyLoss::forward(const Tensor<float, 2>& logits, const Ten
     array<int, 1> dims = {0};
     Tensor<float, 1> expsum = exp_logits.sum(dims); // Sum along columns (axis=0)
     array<int, 2> logit_dims = {(int)exp_logits.dimension(0), 1};
-    softmax = exp_logits / expsum.broadcast(logit_dims);
+    softmax = exp_logits / expsum;
 
     // Compute log(softmax)
     Tensor<float, 2> log_softmax = softmax.log();
@@ -29,7 +46,7 @@ float SoftMaxCrossEntropyLoss::forward(const Tensor<float, 2>& logits, const Ten
     }
 
     // Predicted class labels (for computing contrastive loss)
-    // preds = softmax.argmax(0); 
+    preds = manualArgmax(softmax); 
     return loss_sum;
 
     // Split predictions into 3 parts for contrastive loss
@@ -94,7 +111,7 @@ int getCorrectCount(Tensor<int, 1> preds, Tensor<int, 1> actuals){
 }
 
 float SoftMaxCrossEntropyLoss::getAccu() {
-    Tensor<int, 1> actuals = labels.argmax(0);
+    Tensor<int, 1> actuals = manualArgmax(labels);
     int correctcount = getCorrectCount(preds, actuals);
     return static_cast<float>(correctcount) / preds.dimensions()[0];
 }
