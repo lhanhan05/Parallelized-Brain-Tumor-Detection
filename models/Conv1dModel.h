@@ -21,7 +21,7 @@ public:
                 std::tuple<int, int, int> filter_shape = {1, 5, 5});
 
     std::pair<float, Tensor<int, 1>> forward(const Tensor<float, 4>& inputs, 
-                                             const Tensor<float, 2>& y_labels);
+                                             const Tensor<int, 2>& y_labels);
 
     void backward();
 

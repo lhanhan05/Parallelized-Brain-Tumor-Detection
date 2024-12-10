@@ -20,7 +20,7 @@ Tensor<int, 1> manualArgmax(Tensor<float, 2> input){
     return argmaxOutput;
 }
 
-float SoftMaxCrossEntropyLoss::forward(const Tensor<float, 2>& logits, const Tensor<float, 2>& labels) {
+float SoftMaxCrossEntropyLoss::forward(const Tensor<float, 2>& logits, const Tensor<int, 2>& labels) {
     // Transpose logits and labels
     Tensor<float, 2> logits_transposed = logits.shuffle(array<int, 2>({1, 0}));
     this->labels = labels.shuffle(array<int, 2>({1, 0}));

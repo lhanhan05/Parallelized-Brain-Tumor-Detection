@@ -25,7 +25,7 @@ Conv1dModel::Conv1dModel(int out_dim,
 }
 
 std::pair<float, Tensor<int, 1>> Conv1dModel::forward(const Tensor<float, 4>& inputs, 
-                                                      const Tensor<float, 2>& y_labels) 
+                                                      const Tensor<int, 2>& y_labels) 
 {
     Tensor<float, 4> conv_out = conv.forward(inputs);
     Tensor<float, 4> relu_out = relu.forward(conv_out);

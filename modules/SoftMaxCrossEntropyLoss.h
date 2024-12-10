@@ -6,7 +6,7 @@ class SoftMaxCrossEntropyLoss {
 public:
     SoftMaxCrossEntropyLoss() = default;
 
-    float forward(const Tensor<float, 2>& logits, const Tensor<float, 2>& labels);
+    float forward(const Tensor<float, 2>& logits, const Tensor<int, 2>& labels);
 
     Tensor<float, 2> backward();
 

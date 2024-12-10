@@ -109,7 +109,8 @@ std::vector<Tensor<float, 4>> Conv::backward(const Tensor<float, 4>& dloss)
     }
 
     Tensor<float, 2> mul_output = weights_reshape.contract(dloss_reshape, array<Index, 2>{1, 0});
-    Tensor<float, 4> grad_inputs = im2col_bw(mul_output, array<int, 4>{N, C, H, W}, k_height, k_width, pad, stride);
+    DSizes<int, 4> dims({N, C, H, W});
+    Tensor<float, 4> grad_inputs = im2col_bw(mul_output, dims, k_height, k_width, pad, stride);
 
     Tensor<float, 2> x_col = im2col(X, k_height, k_width, pad, stride);
     Tensor<float, 2> grad_weight_pre = dloss_reshape.contract(x_col, array<Index, 2>{1, 0});
