@@ -4,13 +4,13 @@
 #include <tuple>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
-#include "modules/Conv.h"
-#include "modules/ReLU.h"
-#include "modules/MaxPool.h"
-#include "modules/Flatten.h"
-#include "modules/LinearLayer.h"
-#include "modules/SoftMaxCrossEntropyLoss.h"
-#include "modules/Sigmoid.h"
+#include "../modules/Conv.h"
+#include "../modules/ReLU.h"
+#include "../modules/MaxPool.h"
+#include "../modules/Flatten.h"
+#include "../modules/LinearLayer.h"
+#include "../modules/SoftMaxCrossEntropyLoss.h"
+#include "../modules/Sigmoid.h"
 
 using namespace Eigen;
 
