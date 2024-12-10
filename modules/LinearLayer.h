@@ -15,7 +15,7 @@ public:
 
     void update(float learning_rate = 0.01f, float momentum_coeff = 0.5f);
 
-    std::pair<Eigen::Tensor<float, 2>, Eigen::Tensor<float, 2>> get_wb_fc();
+    std::pair<Eigen::Tensor<float, 2>, Eigen::Tensor<float, 2>> getWb();
 
 private:
     int indim;   // Input dimension
