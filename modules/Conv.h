@@ -3,7 +3,7 @@
 #include <random>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
-#include "Im2Col.h"
+#include "../helper_funcs/Im2Col.h"
 
 using namespace Eigen;
 using namespace Im2Col;

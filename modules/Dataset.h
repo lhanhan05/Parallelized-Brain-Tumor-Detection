@@ -1,8 +1,11 @@
 #include <string>
+#include <vector>  // Include the vector header
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 
 using namespace Eigen;
+using std::vector;
+using std::string;
 
 class Dataset {
 public:

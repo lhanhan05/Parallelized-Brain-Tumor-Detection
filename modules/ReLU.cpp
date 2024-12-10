@@ -1,5 +1,6 @@
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
+#include "ReLU.h"
 
 using namespace Eigen;
 class ReLU {

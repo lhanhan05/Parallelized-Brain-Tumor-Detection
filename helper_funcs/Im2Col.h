@@ -1,4 +1,5 @@
 #include <unsupported/Eigen/CXX11/Tensor>
+using namespace Eigen;
 
 namespace Im2Col {
     Tensor<float, 2> im2col(const Tensor<float, 4>& X, int k_height, int k_width, int padding, int stride);
