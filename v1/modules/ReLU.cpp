@@ -2,8 +2,6 @@
 
 using namespace Eigen;
 
-ReLU::ReLU() : x_mult(Tensor<float, 4>()) {}
-
 Tensor<float, 4> ReLU::forward(const Tensor<float, 4>& x) {
     x_mult = (x > 0).cast<float>();
     return x * x_mult;

@@ -1,5 +1,5 @@
 #ifndef RELU_H
-#define RELU_J
+#define RELU_H
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 using namespace Eigen;

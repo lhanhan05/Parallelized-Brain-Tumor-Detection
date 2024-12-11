@@ -13,7 +13,7 @@ using namespace Im2Col;
 
 Conv::Conv(std::tuple<int, int, int>& input_shape, 
     std::tuple<int, int, int>& filter_shape, 
-    int rand_seed = 0)
+    int rand_seed)
 {
     // Unpacking input shape and filter shape
     auto [num_filters, k_height, k_width] = filter_shape;
@@ -53,7 +53,7 @@ Conv::Conv(std::tuple<int, int, int>& input_shape,
 }
 
 // Forward pass of convolution
-Tensor<float, 4> Conv::forward(const Tensor<float, 4>& inputs, int stride = 1, int pad = 2)
+Tensor<float, 4> Conv::forward(const Tensor<float, 4>& inputs, int stride, int pad)
 {
     this->pad = pad;
     this->stride = stride;
@@ -76,19 +76,17 @@ Tensor<float, 4> Conv::forward(const Tensor<float, 4>& inputs, int stride = 1, i
     out_width = (W + 2 * pad - k_width) / stride + 1;
     out_height = (H + 2 * pad - k_height) / stride + 1;
 
-    Tensor<float, 2> output = weights_reshape.contract(input_cols, array<Index, 2>{0, 1});
-    output = output + biases.broadcast(array<Index, 1>{0});  // Broadcasting biases
-    
-    Tensor<float, 4> output_reshape(num_filters, out_height, out_width, N);
-    for (int n = 0; n < N; ++n) {
-        for (int f = 0; f < num_filters; ++f) {
-            for (int h = 0; h < out_height; ++h) {
-                for (int w = 0; w < out_width; ++w) {
-                    output_reshape(f, h, w, n) = output(f, n * out_height * out_width + h * out_width + w);
-                }
-            }
-        }
-    }
+    Tensor<float, 2> output_tensor(num_filters, N * out_width * out_height);
+
+    output_tensor = weights_reshape.contract(input_cols,
+            array<IndexPair<int>, 1>{IndexPair<int>(1, 0)})
+            .reshape(DSizes<int, 2>{num_filters, N * out_width * out_height});
+
+    output_tensor = output_tensor + biases.reshape(DSizes<int, 2>{num_filters, 1})
+                                        .broadcast(DSizes<int, 2>{1, N * out_width * out_height});
+
+    TensorMap<Tensor<float, 4>> output_reshape(output_tensor.data(),
+            num_filters, out_height, out_width, N);
     
     return output_reshape;
 }
@@ -108,33 +106,26 @@ std::vector<Tensor<float, 4>> Conv::backward(const Tensor<float, 4>& dloss)
         }
     }
 
-    Tensor<float, 2> mul_output = weights_reshape.contract(dloss_reshape, array<Index, 2>{1, 0});
-    DSizes<int, 4> dims({N, C, H, W});
+    Tensor<float, 2> mul_output = weights_reshape.contract(dloss_reshape, array<IndexPair<int>, 1>{IndexPair<int>(1, 0)});
+    DSizes<int, 4> dims(N, C, H, W);
     Tensor<float, 4> grad_inputs = im2col_bw(mul_output, dims, k_height, k_width, pad, stride);
 
     Tensor<float, 2> x_col = im2col(X, k_height, k_width, pad, stride);
-    Tensor<float, 2> grad_weight_pre = dloss_reshape.contract(x_col, array<Index, 2>{1, 0});
-    
-    Tensor<float, 4> grad_weights(num_filters, C, k_height, k_width);
-    for (int f = 0; f < num_filters; ++f) {
-        for (int c = 0; c < C; ++c) {
-            for (int h = 0; h < k_height; ++h) {
-                for (int w = 0; w < k_width; ++w) {
-                    grad_weights(f, c, h, w) = grad_weight_pre(f, c * k_height * k_width + h * k_width + w);
-                }
-            }
-        }
-    }
+    Tensor<float, 2> grad_weight_pre = dloss_reshape.contract(x_col, array<IndexPair<int>, 1>{IndexPair<int>(1, 0)});
+
+    TensorMap<Tensor<float, 4>> grad_weights_mapped(grad_weight_pre.data(), num_filters, C, k_height, k_width);
+
+    Tensor<float, 4> grad_weights = grad_weights_mapped;
 
     Tensor<float, 1> grad_biases = dloss_reshape.sum(array<int, 1>{1});
     
     return {grad_weights, grad_biases, grad_inputs};
 }
 
-void Conv::update(float learning_rate = 0.01, float momentum_coeff = 0.5)
+void Conv::update(float learning_rate, float momentum_coeff)
 {
-    weights_momentum = momentum_coeff * weights_momentum + grad_weights / N;
-    biases_momentum = momentum_coeff * biases_momentum + grad_biases / N;
+    weights_momentum = momentum_coeff * weights_momentum + grad_weights / grad_weights.constant(N);
+    biases_momentum = momentum_coeff * biases_momentum + grad_biases / grad_biases.constant(N);
 
     weights -= learning_rate * weights_momentum;
     biases -= learning_rate * biases_momentum;
