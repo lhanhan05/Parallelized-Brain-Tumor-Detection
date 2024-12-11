@@ -31,7 +31,15 @@ float SoftMaxCrossEntropyLoss::forward(const Tensor<float, 2>& logits, const Ten
     array<int, 1> dims = {0};
     Tensor<float, 1> expsum = exp_logits.sum(dims); // Sum along columns (axis=0)
     array<int, 2> logit_dims = {(int)exp_logits.dimension(0), 1};
-    softmax = exp_logits / expsum;
+
+    Tensor<float, 2> expsum_reshaped(exp_logits.dimension(0), exp_logits.dimension(1));
+
+    for (int col = 0; col < exp_logits.dimension(1); ++col) {
+        for (int row = 0; row < exp_logits.dimension(0); ++row) {
+            expsum_reshaped(row, col) = expsum(col);
+        }
+    }
+    softmax = exp_logits / expsum_reshaped;
 
     // Compute log(softmax)
     Tensor<float, 2> log_softmax = softmax.log();
