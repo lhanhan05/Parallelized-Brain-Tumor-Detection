@@ -1,3 +1,5 @@
+#ifndef RELU_H
+#define RELU_J
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 using namespace Eigen;
@@ -11,3 +13,4 @@ public:
 private:
     Tensor<float, 4> x_mult;
 };
+#endif
