@@ -223,6 +223,8 @@ class SoftMaxCrossEntropyLoss():
             element_count = {}
 
             for array in pred_parts:
+                if i >= len(array):
+                    break
                 element = array[i]
                 if element in element_count:
                     element_count[element] += 1
