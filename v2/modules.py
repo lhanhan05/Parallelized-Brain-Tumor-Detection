@@ -235,8 +235,10 @@ class SoftMaxCrossEntropyLoss():
         contrast_loss_section = [-0.01*x for x in sims]
         contrast_loss = np.tile(contrast_loss_section, 3)
         contrast_sum = np.sum(contrast_loss)
-    
-        self.contrast = contrast_loss.reshape((-1,1)) * labels
+
+        # self.contrast = contrast_loss.reshape((-1,1)) * labels
+        self.contrast = contrast_loss[:labels.shape[0]].reshape((-1,1)) * labels
+
         if get_predictions:
             return (0.8*loss_sum + 0.2*contrast_sum, preds)
         else:
