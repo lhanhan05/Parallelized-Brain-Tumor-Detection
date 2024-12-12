@@ -19,15 +19,15 @@ class ConvNetTwoSequential(Transform):
         pool2_w_out = (conv2_w_out - pool_w)//pool_stride  + 1
         pool2_h_out = (conv2_h_out - pool_h)//pool_stride  + 1
 
-        self.conv1 = Conv(input_shape, filter_shape)
-        self.relu1 = ReLU()
-        self.maxpool1 = MaxPool((2,2),2)
-        self.conv2 = Conv((conv_k_c,pool1_w_out,pool1_h_out), (1,5,5))
-        self.relu2 = ReLU()
-        self.maxpool2 = MaxPool((2,2),2)
-        self.flatten = Flatten()
-        self.linear = LinearLayer(conv_k_c*pool2_w_out*pool2_h_out,out_dim)
-        self.loss = SoftMaxCrossEntropyLoss()
+        self.conv1 = Conv(input_shape, filter_shape, False)
+        self.relu1 = ReLU(False)
+        self.maxpool1 = MaxPool((2,2),2, False)
+        self.conv2 = Conv((conv_k_c,pool1_w_out,pool1_h_out), (1,5,5), False)
+        self.relu2 = ReLU(False)
+        self.maxpool2 = MaxPool((2,2),2, False)
+        self.flatten = Flatten(False)
+        self.linear = LinearLayer(conv_k_c*pool2_w_out*pool2_h_out,out_dim, False)
+        self.loss = SoftMaxCrossEntropyLoss(False)
 
     def forward(self, inputs, y_labels):
         conv1_out = self.conv1.forward(inputs)

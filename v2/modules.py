@@ -152,7 +152,7 @@ class Conv(Transform):
 
         return [self.grad_weights, self.grad_biases, self.grad_inputs]
 
-    def update(self, learning_rate=0.01, momentum_coeff=0.5, grad_weights=None, grad_biases=None):
+    def update(self, learning_rate=0.001, momentum_coeff=0.5, grad_weights=None, grad_biases=None):
         if self.is_data_parallel:
             self.grad_weights = grad_weights
             self.grad_biases = grad_biases

@@ -70,11 +70,13 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
     test_accus = []
     total_times = []
     idxs = []
+    start_time = time.time()
     for i in tqdm(range(EPOCHS)):
         if is_data_parallel:
             train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         else:
             train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+        curr_time = time.time()-start_time
         idxs.append(i)
         train_losses.append(train_loss)
         train_accus.append(train_accu)
@@ -82,14 +84,13 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
         test_accus.append(test_accu)
         total_times.append(curr_time)
         print("Epoch {} done: {}, {}, {}, {}, {}s".format(i, train_loss, train_accu, test_loss, test_accu, curr_time))
-    end_time = time.time()
-    elapsed_time = end_time - start_time
+
     
     print("Best Training Loss: {}".format(np.min(train_losses)))
     print("Best Test Loss: {}".format(np.min(test_losses)))
     print("Best Train Accuracy: {}".format(np.max(train_accus)))
     print("Best Test Accuracy : {}".format(np.max(test_accus)))
-    print("Elapsed Time: {}s".format(elapsed_time))
+    print("Elapsed Time: {}s".format(np.max(total_times)))
     
     fig, axs = plt.subplots(2, 1, figsize=(10, 10))
     axs[0].plot(idxs, train_losses, label='train loss')
@@ -105,6 +106,9 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
 
     plt.savefig('1d_seq.png')
     # plt.savefig('2d_seq.png')
+
+    # plt.savefig('1d_data.png')
+    # plt.savefig('2d_data.png')
     print("Total Times per Epoch:", total_times)
 
 
@@ -117,7 +121,11 @@ if __name__ == '__main__':
     trainX, testX, pureTrainY, pureTestY = create_data(classes, test_size=0.2)
     trainX, trainY, testX, testY = prep_image_data(trainX, pureTrainY, testX, pureTestY)
 
-    modelDataParallel = ConvNetOneDataParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    modelSequential = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    # train_model(modelSequential, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
-    train_model(modelDataParallel, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, True)
+    # RUNNING SEQUENTIAL
+    # modelSequential = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    modelSequential = ConvNetTwoSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    train_model(modelSequential, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
+
+    # RUNNING DATA PARALLELISM
+    # modelDataParallel = ConvNetOneDataParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    # train_model(modelDataParallel, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, True)
