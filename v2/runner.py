@@ -9,7 +9,8 @@ from conv1d_data_parallel import ConvNetOneDataParallel
 from train_sequential import train_epoch_sequential
 from train_data_parallel import train_epoch_data_parallel
 from conv2d_sequential import ConvNetTwoSequential
-
+import multiprocessing
+from train_data_parallel import ParamServer
 
 def img_to_matrix(path):
     img = Image.open(path)
@@ -71,9 +72,12 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
     total_times = []
     idxs = []
     start_time = time.time()
+    multiprocessing.Manager().register('ParamServer', ParamServer)
+    manager = multiprocessing.Manager()
+    param_server = manager.ParamServer(model, LEARNING_RATE, MOMENTUM)
     for i in tqdm(range(EPOCHS)):
         if is_data_parallel:
-            train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+            train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(param_server, BATCH_SIZE, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         else:
             train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         curr_time = time.time()-start_time
