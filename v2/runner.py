@@ -4,7 +4,9 @@ from PIL import Image
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from conv1d_sequential import ConvNetOneSequential
-
+from conv1d_data_parallel import ConvNetOneDataParallel
+from train_sequential import train_epoch_sequential
+from train_data_parallel import train_epoch_data_parallel
 
 def img_to_matrix(path):
     img = Image.open(path)
@@ -57,43 +59,18 @@ def prep_image_data(train_images, train_labels, test_images, test_labels):
 
     return train_images, train_labels, test_images, test_labels
 
-def train_epoch(model, batch_size, learning_rate, momentum_coeff, trainX, trainY, pureTrainY, testX, testY, pureTestY):
-    num_images = np.shape(trainX)[0]
-    num_test = np.shape(testX)[0]
-    permut = np.random.choice(num_images, num_images, replace=False)
-    trainX = trainX[permut]
-    trainY = trainY[permut]
-    pureTrainY = pureTrainY[permut]
-    num_batches = int(np.ceil(num_images/batch_size))
-    losses = []
-    accus = []
-    third_batch = int(batch_size/3)
-    third_images = int(num_images/3)
-    for i in tqdm(range(num_batches)):
-        start = i*third_batch
-        end = (i+1)*third_batch
-        currX = np.concatenate([trainX[start:end], trainX[start + third_images:end + third_images], trainX[start + 2*third_images:end + 2*third_images]])
-        currY = np.concatenate([trainY[start:end], trainY[start + third_images:end + third_images], trainY[start + 2*third_images:end + 2*third_images]])
-        curr_loss,_ = model.forward(currX, currY)
-        losses.append(curr_loss)
-        model.backward()
-        model.update(learning_rate, momentum_coeff)
-    train_loss = np.sum(losses)/num_images
-    _, train_pred = model.forward(trainX, trainY)
-    train_accu = np.count_nonzero(train_pred == pureTrainY)/num_images
-    test_loss, test_pred = model.forward(testX, testY)
-    test_loss = test_loss/num_test
-    test_accu = np.count_nonzero(test_pred == pureTestY)/num_test
-    return train_loss, train_accu, test_loss, test_accu
 
-def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY):
+def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, is_data_parallel):
     train_losses = []
     train_accus = []
     test_losses = []
     test_accus = []
     idxs = []
-    for i in range(EPOCHS):
-        train_loss, train_accu, test_loss, test_accu = train_epoch(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+    for i in tqdm(range(EPOCHS)):
+        if is_data_parallel:
+            train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+        else:
+            train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         idxs.append(i)
         train_losses.append(train_loss)
         train_accus.append(train_accu)
@@ -129,5 +106,7 @@ if __name__ == '__main__':
     trainX, testX, pureTrainY, pureTestY = create_data(classes, test_size=0.2)
     trainX, trainY, testX, testY = prep_image_data(trainX, pureTrainY, testX, pureTestY)
 
-    model = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+    modelDataParallel = ConvNetOneDataParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    modelSequential = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    # train_model(modelSequential, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
+    train_model(modelDataParallel, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, True)

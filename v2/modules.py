@@ -2,7 +2,8 @@ import numpy as np
 from helpers import im2col, im2col_bw
 
 class Transform:
-    def __init__(self):
+    def __init__(self, is_data_parallel):
+        self.is_data_parallel = is_data_parallel
         pass
 
     def forward(self, x):
@@ -16,47 +17,60 @@ class Transform:
 
 
 class ReLU(Transform):
-    def __init__(self):
-        Transform.__init__(self)
+    def __init__(self, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
         self.x_mult = None
 
     def forward(self, x):
         self.x_mult = (x > 0)
-        return x*self.x_mult
+        if self.is_data_parallel:
+            return x*self.x_mult, self.x_mult
+        else:
+            return x*self.x_mult
 
-    def backward(self, grad_wrt_out):
+    def backward(self, grad_wrt_out, x_mult=None):
+        if self.is_data_parallel:
+            self.x_mult = x_mult
         return self.x_mult*grad_wrt_out
     
 class Sigmoid(Transform):
-    def __init__(self):
-        Transform.__init__(self)
+    def __init__(self, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
         self.forward_out = None
 
     def forward(self, x):
         self.forward_out = 1/(1 + np.exp(-1*x))
         return self.forward_out
 
-    def backward(self, grad_wrt_out):
+    def backward(self, grad_wrt_out, forward_out):
+        if self.is_data_parallel:
+            self.forward_out = forward_out
         mult = self.forward_out*(1 - self.forward_out)
         return mult*grad_wrt_out
     
 class LeakyReLU(Transform):
-    def __init__(self):
-        Transform.__init__(self)
+    def __init__(self, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
         self.pos_mult = None
         self.neg_mult = None
 
     def forward(self, x):
         self.pos_mult = (x > 0)
         self.neg_mult = (x <= 0)*0.05
-        return x*self.pos_mult + x*self.neg_mult
+        if self.is_data_parallel:
+            return x*self.pos_mult + x*self.neg_mult, self.pos_mult, self.neg_mult
+        else:
+            return x*self.pos_mult + x*self.neg_mult
 
-    def backward(self, grad_wrt_out):
+    def backward(self, grad_wrt_out, pos_mult, neg_mult):
+        if self.is_data_parallel:
+            self.pos_mult = pos_mult
+            self.neg_mult = neg_mult
         return self.pos_mult*grad_wrt_out + self.neg_mult*grad_wrt_out
 
 class Dropout(Transform):
-    def __init__(self, p=0.1):
-        Transform.__init__(self)
+    def __init__(self, is_data_parallel, p=0.1):
+        Transform.__init__(self, is_data_parallel)
         self.p = p
         self.mask = None
 
@@ -74,6 +88,9 @@ class Dropout(Transform):
         return self.mask*grad_wrt_out
     
 class Flatten(Transform):
+    def __init__(self, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
+
     def forward(self, x):
         self.shape = np.shape(x)
         (N,C,H,W) = self.shape
@@ -84,7 +101,8 @@ class Flatten(Transform):
 
 
 class Conv(Transform):
-    def __init__(self, input_shape, filter_shape):
+    def __init__(self, input_shape, filter_shape, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
         (num_filters, k_height, k_width) = filter_shape
         (C, H, W) = input_shape
         self.num_filters = num_filters
@@ -115,7 +133,9 @@ class Conv(Transform):
         output_transpose = np.transpose(output_reshape, (3, 0, 1, 2))
         return output_transpose
 
-    def backward(self, dloss):
+    def backward(self, dloss, input_shape=None):
+        if self.is_data_parallel:
+            self.N, self.C, self.H, self.W = input_shape
         weights_transpose = np.transpose(self.weights, (1,2,3,0))
         weights_reshape = np.reshape(weights_transpose, (self.C*self.k_height*self.k_width, self.num_filters))
         dloss_transpose = np.transpose(dloss, (1,2,3,0))
@@ -132,7 +152,10 @@ class Conv(Transform):
 
         return [self.grad_weights, self.grad_biases, self.grad_inputs]
 
-    def update(self, learning_rate=0.01, momentum_coeff=0.5):
+    def update(self, learning_rate=0.01, momentum_coeff=0.5, grad_weights=None, grad_biases=None):
+        if self.is_data_parallel:
+            self.grad_weights = grad_weights
+            self.grad_biases = grad_biases
         self.weights_momentum = momentum_coeff*self.weights_momentum + self.grad_weights/self.N
         self.biases_momentum = momentum_coeff*self.biases_momentum + self.grad_biases/self.N
         self.weights = self.weights - learning_rate*self.weights_momentum
@@ -143,7 +166,8 @@ class Conv(Transform):
 
 
 class MaxPool(Transform):
-    def __init__(self, filter_shape, stride):
+    def __init__(self, filter_shape, stride, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
         (self.k_height, self.k_width) = filter_shape
         self.stride = stride
 
@@ -159,9 +183,15 @@ class MaxPool(Transform):
 
         self.grad_mask = (cols_reshape == max_forward[None])
         output = np.transpose(np.reshape(max_forward, (self.C, self.out_height, self.out_width, self.N)), (3,0,1,2))
-        return output
+        if self.is_data_parallel:
+            return output, self.grad_mask, np.shape(inputs)
+        else:
+            return output
 
-    def backward(self, dloss):
+    def backward(self, dloss, input_shape=None, grad_mask=None):
+        if self.is_data_parallel:
+            self.grad_mask = grad_mask
+            self.N, self.C, self.H, self.W = input_shape
         cols = np.reshape(np.transpose(dloss, (1,2,3,0)), (self.C, self.out_height*self.out_width*self.N))
         cols_repeat = np.repeat(cols, self.k_height*self.k_width, axis=0)
         mask_reshape = np.reshape(np.transpose(self.grad_mask, (1,0,2)), np.shape(cols_repeat))
@@ -170,7 +200,8 @@ class MaxPool(Transform):
 
 
 class LinearLayer(Transform):
-    def __init__(self, indim, outdim):
+    def __init__(self, indim, outdim, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
         self.indim = indim
         self.outdim = outdim
         b = np.sqrt(6)/np.sqrt(indim+outdim)
@@ -181,19 +212,27 @@ class LinearLayer(Transform):
         self.biases_momentum = np.zeros_like(self.biases)
 
     def forward(self, inputs):
-        (self.N, indim) = np.shape(inputs)
+        (self.N, _) = np.shape(inputs)
         self.inputs = inputs
         input_weight_prod = np.transpose(np.matmul(self.inputs, self.weights))
-        return np.transpose(input_weight_prod + self.biases)
+        if self.is_data_parallel:
+            return np.transpose(input_weight_prod + self.biases), inputs
+        else:
+            return np.transpose(input_weight_prod + self.biases)
 
-    def backward(self, dloss):
+    def backward(self, dloss, inputs=None):
+        if self.is_data_parallel:
+            self.inputs = inputs
         self.grad_weights = np.matmul(np.transpose(self.inputs), dloss)
         self.grad_inputs = np.matmul(dloss, np.transpose(self.weights))
         dloss_transpose = np.transpose(dloss)
         self.grad_biases = np.reshape(np.sum(dloss_transpose, axis=1), (self.outdim, 1))
         return [self.grad_weights, self.grad_biases, self.grad_inputs]
 
-    def update(self, learning_rate=0.01, momentum_coeff=0.5):
+    def update(self, learning_rate, momentum_coeff, grad_weights=None, grad_biases=None):
+        if self.is_data_parallel:
+            self.grad_weights = grad_weights
+            self.grad_biases = grad_biases
         self.weights_momentum = momentum_coeff*self.weights_momentum + self.grad_weights/self.N
         self.biases_momentum = momentum_coeff*self.biases_momentum + self.grad_biases/self.N
         self.weights = self.weights - learning_rate*self.weights_momentum
@@ -203,7 +242,10 @@ class LinearLayer(Transform):
         return (self.weights, self.biases)
 
 
-class SoftMaxCrossEntropyLoss():
+class SoftMaxCrossEntropyLoss(Transform):
+    def __init__(self, is_data_parallel):
+        Transform.__init__(self, is_data_parallel)
+
     def forward(self, logits, labels, get_predictions=False):
         logits = np.transpose(logits)
         self.labels = np.transpose(labels)
@@ -236,19 +278,30 @@ class SoftMaxCrossEntropyLoss():
         contrast_loss = np.tile(contrast_loss_section, 3)
         contrast_sum = np.sum(contrast_loss)
 
-        # self.contrast = contrast_loss.reshape((-1,1)) * labels
         self.contrast = contrast_loss[:labels.shape[0]].reshape((-1,1)) * labels
-
+        total_loss = 0.8*loss_sum + 0.2*contrast_sum
         if get_predictions:
-            return (0.8*loss_sum + 0.2*contrast_sum, preds)
+            if self.is_data_parallel:
+                return (total_loss, preds, self.softmax, self.labels)
+            else:
+                return (total_loss, preds)
         else:
-            return 0.8*loss_sum + 0.2*contrast_sum
+            if self.is_data_parallel:
+                return (total_loss, self.softmax, self.labels)
+            else:
+                return total_loss
 
-    def backward(self):
+    def backward(self, softmax=None, labels=None):
+        if self.is_data_parallel:
+            self.softmax = softmax
+            self.labels = labels
         softmax_back = np.transpose(self.softmax - self.labels)
         return 0.8*softmax_back + 0.2*self.contrast
 
-    def getAccu(self):
+    def getAccu(self, softmax=None, labels=None):
+        if self.is_data_parallel:
+            self.softmax = softmax
+            self.labels = labels
         preds = np.argmax(self.softmax, axis=0)
         actuals = np.argmax(self.labels, axis=0)
         correctcount = np.count_nonzero(preds==actuals)

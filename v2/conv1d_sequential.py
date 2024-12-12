@@ -3,7 +3,7 @@ from modules import Transform, Conv, ReLU, Sigmoid, LeakyReLU, MaxPool, Flatten,
 class ConvNetOneSequential(Transform):
     def __init__(self, out_dim=20, input_shape=(3,32,32), filter_shape=(1,5,5)):
         self.out_dim = out_dim
-        (conv_c, conv_w, conv_h) = input_shape
+        (_, conv_w, conv_h) = input_shape
         (conv_padding, conv_stride) = (2,1)
         (self.conv_k_c, conv_k_w, conv_k_h) = filter_shape
         pool_stride = 2
@@ -14,14 +14,14 @@ class ConvNetOneSequential(Transform):
         self.pool_w_out = (self.conv_w_out - pool_w)//pool_stride  + 1
         self.pool_h_out = (self.conv_h_out - pool_h)//pool_stride  + 1
 
-        self.conv = Conv(input_shape, filter_shape)
-        self.relu = ReLU()
-        self.sigmoid = Sigmoid()
-        self.leakyrelu = LeakyReLU()
-        self.maxpool = MaxPool((2,2),2)
-        self.flatten = Flatten()
-        self.linear = LinearLayer(self.conv_k_c*self.pool_w_out*self.pool_h_out,self.out_dim)
-        self.loss = SoftMaxCrossEntropyLoss()
+        self.conv = Conv(input_shape, filter_shape, False)
+        self.relu = ReLU(False)
+        self.sigmoid = Sigmoid(False)
+        self.leakyrelu = LeakyReLU(False)
+        self.maxpool = MaxPool((2,2),2, False)
+        self.flatten = Flatten(False)
+        self.linear = LinearLayer(self.conv_k_c*self.pool_w_out*self.pool_h_out,self.out_dim, False)
+        self.loss = SoftMaxCrossEntropyLoss(False)
 
 
     def forward(self, inputs, y_labels):
@@ -39,7 +39,7 @@ class ConvNetOneSequential(Transform):
         flatten_out = self.flatten.backward(linear_out)
         maxpool_out = self.maxpool.backward(flatten_out)
         acti_out = self.relu.backward(maxpool_out)
-        conv_out = self.conv.backward(acti_out)[2]
+        self.conv.backward(acti_out)[2]
        
 
     def update(self, learning_rate, momentum_coeff):
