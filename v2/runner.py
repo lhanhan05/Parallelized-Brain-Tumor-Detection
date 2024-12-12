@@ -1,9 +1,12 @@
 import numpy as np
 import os
+import time
 from PIL import Image
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from conv1d_sequential import ConvNetOneSequential
+from conv2d_sequential import ConvNetTwoSequential
+from conv3d_sequential import ConvNetThreeSequential
 
 
 def img_to_matrix(path):
@@ -92,36 +95,60 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
     test_losses = []
     test_accus = []
     idxs = []
+    total_times = []
+    start_time = time.time()
     for i in range(EPOCHS):
         train_loss, train_accu, test_loss, test_accu = train_epoch(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+        curr_time = time.time()-start_time
         idxs.append(i)
         train_losses.append(train_loss)
         train_accus.append(train_accu)
         test_losses.append(test_loss)
         test_accus.append(test_accu)
-        print("Epoch {} done: {}, {}, {}, {}".format(i, train_loss, train_accu, test_loss, test_accu))
+        total_times.append(curr_time)
+        print("Epoch {} done: {}, {}, {}, {}, {}s".format(i, train_loss, train_accu, test_loss, test_accu, curr_time))
+    end_time = time.time()
+    elapsed_time = end_time - start_time
     
     print("Best Training Loss: {}".format(np.min(train_losses)))
     print("Best Test Loss: {}".format(np.min(test_losses)))
     print("Best Train Accuracy: {}".format(np.max(train_accus)))
     print("Best Test Accuracy : {}".format(np.max(test_accus)))
-
-    fig, axs = plt.subplots(2)
+    print("Elapsed Time: {}s".format(elapsed_time))
     
-    axs[0].plot(idxs, train_losses, label= 'train loss')
-    axs[0].plot(idxs, test_losses, label= 'test loss')
+    # fig, axs = plt.subplots(2)
+    
+    # axs[0].plot(idxs, train_losses, label= 'train loss')
+    # axs[0].plot(idxs, test_losses, label= 'test loss')
    
-    axs[1].plot(idxs, train_accus, label= 'train accuracy')
-    axs[1].plot(idxs, test_accus, label= 'test accuracy')
+    # axs[1].plot(idxs, train_accus, label= 'train accuracy')
+    # axs[1].plot(idxs, test_accus, label= 'test accuracy')
+    # axs[0].set_ylabel('Loss')
+    # axs[0].legend(loc='upper right')
+    # axs[1].set_xlabel('Epoch Number')
+    # axs[1].set_ylabel('Accuracy')
+    # axs[1].legend(loc='upper left')
+    # plt.show()
+    fig, axs = plt.subplots(3, 1, figsize=(10, 15))
+    axs[0].plot(idxs, train_losses, label='train loss')
+    axs[0].plot(idxs, test_losses, label='test loss')
     axs[0].set_ylabel('Loss')
     axs[0].legend(loc='upper right')
-    axs[1].set_xlabel('Epoch Number')
+    
+    axs[1].plot(idxs, train_accus, label='train accuracy')
+    axs[1].plot(idxs, test_accus, label='test accuracy')
     axs[1].set_ylabel('Accuracy')
     axs[1].legend(loc='upper left')
+    
+    axs[2].plot(idxs, total_times, label='time per epoch')
+    axs[2].set_ylabel('Time (seconds)')
+    axs[2].legend(loc='upper right')
+    axs[2].set_xlabel('Epoch Number')
+    plt.savefig('training_results.png')
     plt.show()
 
 if __name__ == '__main__':
-    BATCH_SIZE = 128
+    BATCH_SIZE = 64
     LEARNING_RATE = 0.001
     MOMENTUM = 0.95
     EPOCHS = 50
@@ -130,4 +157,7 @@ if __name__ == '__main__':
     trainX, trainY, testX, testY = prep_image_data(trainX, pureTrainY, testX, pureTestY)
 
     model = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    # model = ConvNetTwoSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    # model = ConvNetThreeSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5), dropout = .2)
+
     train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)

@@ -132,7 +132,7 @@ class Conv(Transform):
 
         return [self.grad_weights, self.grad_biases, self.grad_inputs]
 
-    def update(self, learning_rate=0.01, momentum_coeff=0.5):
+    def update(self, learning_rate=0.001, momentum_coeff=0.95):
         self.weights_momentum = momentum_coeff*self.weights_momentum + self.grad_weights/self.N
         self.biases_momentum = momentum_coeff*self.biases_momentum + self.grad_biases/self.N
         self.weights = self.weights - learning_rate*self.weights_momentum
@@ -193,7 +193,7 @@ class LinearLayer(Transform):
         self.grad_biases = np.reshape(np.sum(dloss_transpose, axis=1), (self.outdim, 1))
         return [self.grad_weights, self.grad_biases, self.grad_inputs]
 
-    def update(self, learning_rate=0.01, momentum_coeff=0.5):
+    def update(self, learning_rate=0.001, momentum_coeff=0.95):
         self.weights_momentum = momentum_coeff*self.weights_momentum + self.grad_weights/self.N
         self.biases_momentum = momentum_coeff*self.biases_momentum + self.grad_biases/self.N
         self.weights = self.weights - learning_rate*self.weights_momentum
@@ -236,7 +236,6 @@ class SoftMaxCrossEntropyLoss():
         contrast_loss = np.tile(contrast_loss_section, 3)
         contrast_sum = np.sum(contrast_loss)
 
-        # self.contrast = contrast_loss.reshape((-1,1)) * labels
         self.contrast = contrast_loss[:labels.shape[0]].reshape((-1,1)) * labels
 
         if get_predictions:
