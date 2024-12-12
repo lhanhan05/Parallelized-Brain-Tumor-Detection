@@ -32,18 +32,21 @@ class ConvNetOneDataParallel(Transform):
         flatten_out = self.flatten.forward(maxpool_out)
         linear_out, linear_input = self.linear.forward(flatten_out)
         (losses, preds, softmax, new_labels, contrast_loss) = self.loss.forward(linear_out, y_labels, get_predictions=True)
-        return (losses, preds, relu_x_mult, linear_input, softmax, new_labels, contrast_loss, maxpool_input_shape, maxpool_grad_mask)
+        parallel_updates = (np.shape(inputs), relu_x_mult, linear_input, softmax, new_labels, contrast_loss, maxpool_input_shape, maxpool_grad_mask)
+        return (losses, preds, parallel_updates)
 
-    def backward(self, inputs, relu_x_mult, linear_input, softmax, new_labels, contrast_loss, maxpool_input_shape, maxpool_grad_mask):
+    def backward(self, parallel_updates):
+        (input_shape, relu_x_mult, linear_input, softmax, new_labels, contrast_loss, maxpool_input_shape, maxpool_grad_mask) = parallel_updates
         loss = self.loss.backward(softmax, new_labels, contrast_loss)
         linear_out = self.linear.backward(loss, linear_input)
         flatten_out = self.flatten.backward(linear_out[2])
         maxpool_out = self.maxpool.backward(flatten_out, maxpool_input_shape, maxpool_grad_mask)
         relu_out = self.relu.backward(maxpool_out, relu_x_mult)
-        conv_out = self.conv.backward(relu_out, np.shape(inputs))
+        conv_out = self.conv.backward(relu_out, input_shape)
         return linear_out, conv_out
     
-    def override_weights(self, new_conv, new_linear):
+    def override_weights(self, new_weights):
+        new_conv, new_linear = new_weights
         conv_weights, conv_biases = new_conv
         linear_weights, linear_biases = new_linear
         self.linear.override_weights(linear_weights, linear_biases)
@@ -52,6 +55,7 @@ class ConvNetOneDataParallel(Transform):
     def get_weights(self):
         return (self.conv.get_wb_conv() ,self.linear.get_wb_fc())
        
-    def update(self, learning_rate, momentum_coeff, linear_out, conv_out, N):
+    def update(self, learning_rate, momentum_coeff, outputs, N):
+        linear_out, conv_out = outputs
         self.linear.update(learning_rate, momentum_coeff, linear_out[0], linear_out[1], N)
         self.conv.update(learning_rate, momentum_coeff, conv_out[0], conv_out[1], N)
