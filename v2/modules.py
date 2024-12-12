@@ -134,14 +134,16 @@ class Conv(Transform):
         return output_transpose
 
     def backward(self, dloss, input_shape=None):
-        if self.is_data_parallel:
-            self.N, self.C, self.H, self.W = input_shape
+        if not self.is_data_parallel:
+            N, C, H, W = self.N, self.C, self.H, self.W
+        else:
+            N, C, H, W = input_shape
         weights_transpose = np.transpose(self.weights, (1,2,3,0))
         weights_reshape = np.reshape(weights_transpose, (self.C*self.k_height*self.k_width, self.num_filters))
         dloss_transpose = np.transpose(dloss, (1,2,3,0))
         dloss_reshape = np.reshape(dloss_transpose, (self.num_filters, self.out_height*self.out_width*self.N))
         mul_output = np.matmul(weights_reshape, dloss_reshape) 
-        self.grad_inputs = im2col_bw(mul_output, (self.N, self.C, self.H, self.W), self.k_height, self.k_width, self.pad, self.stride)
+        self.grad_inputs = im2col_bw(mul_output, (N, C, H, W), self.k_height, self.k_width, self.pad, self.stride)
 
         x_col = im2col(self.X, self.k_height, self.k_width, self.pad, self.stride)
         x_col_transpose = np.transpose(x_col)
@@ -152,14 +154,19 @@ class Conv(Transform):
 
         return [self.grad_weights, self.grad_biases, self.grad_inputs]
 
-    def update(self, learning_rate=0.001, momentum_coeff=0.5, grad_weights=None, grad_biases=None):
-        if self.is_data_parallel:
-            self.grad_weights = grad_weights
-            self.grad_biases = grad_biases
-        self.weights_momentum = momentum_coeff*self.weights_momentum + self.grad_weights/self.N
-        self.biases_momentum = momentum_coeff*self.biases_momentum + self.grad_biases/self.N
+    def update(self, learning_rate=0.001, momentum_coeff=0.5, grad_weights=None, grad_biases=None, N=None):
+        if not self.is_data_parallel:
+            grad_weights = self.grad_weights
+            grad_biases = self.grad_biases
+            N = self.N
+        self.weights_momentum = momentum_coeff*self.weights_momentum + grad_weights/N
+        self.biases_momentum = momentum_coeff*self.biases_momentum + grad_biases/N
         self.weights = self.weights - learning_rate*self.weights_momentum
         self.biases = self.biases - learning_rate*self.biases_momentum  
+
+    def override_weights(self, weights, biases):
+        self.weights = weights
+        self.biases = biases
       
     def get_wb_conv(self):
         return (self.weights, self.biases)
@@ -189,13 +196,15 @@ class MaxPool(Transform):
             return output
 
     def backward(self, dloss, input_shape=None, grad_mask=None):
-        if self.is_data_parallel:
-            self.grad_mask = grad_mask
-            self.N, self.C, self.H, self.W = input_shape
-        cols = np.reshape(np.transpose(dloss, (1,2,3,0)), (self.C, self.out_height*self.out_width*self.N))
+        if not self.is_data_parallel:
+            grad_mask = self.grad_mask
+            N, C, H, W = self.N, self.C, self.H, self.W
+        else:
+            N, C, H, W = input_shape
+        cols = np.reshape(np.transpose(dloss, (1,2,3,0)), (C, self.out_height*self.out_width*self.N))
         cols_repeat = np.repeat(cols, self.k_height*self.k_width, axis=0)
-        mask_reshape = np.reshape(np.transpose(self.grad_mask, (1,0,2)), np.shape(cols_repeat))
-        grad_input = im2col_bw(cols_repeat*mask_reshape, (self.N, self.C, self.H, self.W), self.k_height, self.k_width, padding=0, stride=self.stride)
+        mask_reshape = np.reshape(np.transpose(grad_mask, (1,0,2)), np.shape(cols_repeat))
+        grad_input = im2col_bw(cols_repeat*mask_reshape, (N, C, H, W), self.k_height, self.k_width, padding=0, stride=self.stride)
         return grad_input
 
 
@@ -221,22 +230,27 @@ class LinearLayer(Transform):
             return np.transpose(input_weight_prod + self.biases)
 
     def backward(self, dloss, inputs=None):
-        if self.is_data_parallel:
-            self.inputs = inputs
-        self.grad_weights = np.matmul(np.transpose(self.inputs), dloss)
+        if not self.is_data_parallel:
+            inputs = self.inputs
+        self.grad_weights = np.matmul(np.transpose(inputs), dloss)
         self.grad_inputs = np.matmul(dloss, np.transpose(self.weights))
         dloss_transpose = np.transpose(dloss)
         self.grad_biases = np.reshape(np.sum(dloss_transpose, axis=1), (self.outdim, 1))
         return [self.grad_weights, self.grad_biases, self.grad_inputs]
 
-    def update(self, learning_rate, momentum_coeff, grad_weights=None, grad_biases=None):
-        if self.is_data_parallel:
-            self.grad_weights = grad_weights
-            self.grad_biases = grad_biases
-        self.weights_momentum = momentum_coeff*self.weights_momentum + self.grad_weights/self.N
-        self.biases_momentum = momentum_coeff*self.biases_momentum + self.grad_biases/self.N
+    def update(self, learning_rate, momentum_coeff, grad_weights=None, grad_biases=None, N=None):
+        if not self.is_data_parallel:
+            grad_weights = self.grad_weights
+            grad_biases = self.grad_biases
+            N = self.N
+        self.weights_momentum = momentum_coeff*self.weights_momentum + grad_weights/N
+        self.biases_momentum = momentum_coeff*self.biases_momentum + grad_biases/N
         self.weights = self.weights - learning_rate*self.weights_momentum
         self.biases = self.biases - learning_rate*self.biases_momentum    
+
+    def override_weights(self, weights, biases):
+        self.weights = weights
+        self.biases = biases
 
     def get_wb_fc(self):
         return (self.weights, self.biases)
@@ -282,21 +296,22 @@ class SoftMaxCrossEntropyLoss(Transform):
         total_loss = 0.8*loss_sum + 0.2*contrast_sum
         if get_predictions:
             if self.is_data_parallel:
-                return (total_loss, preds, self.softmax, self.labels)
+                return (total_loss, preds, self.softmax, self.labels, self.contrast)
             else:
                 return (total_loss, preds)
         else:
             if self.is_data_parallel:
-                return (total_loss, self.softmax, self.labels)
+                return (total_loss, self.softmax, self.labels, self.contrast)
             else:
                 return total_loss
 
-    def backward(self, softmax=None, labels=None):
-        if self.is_data_parallel:
-            self.softmax = softmax
-            self.labels = labels
-        softmax_back = np.transpose(self.softmax - self.labels)
-        return 0.8*softmax_back + 0.2*self.contrast
+    def backward(self, softmax=None, labels=None, contrast = None):
+        if not self.is_data_parallel:
+            softmax = self.softmax
+            labels = self.labels
+            contrast = self.contrast
+        softmax_back = np.transpose(softmax - labels)
+        return 0.8*softmax_back + 0.2*contrast
 
     def getAccu(self, softmax=None, labels=None):
         if self.is_data_parallel:
