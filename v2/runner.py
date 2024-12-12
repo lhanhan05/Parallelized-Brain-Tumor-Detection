@@ -123,9 +123,9 @@ if __name__ == '__main__':
 
     # RUNNING SEQUENTIAL
     # modelSequential = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    modelSequential = ConvNetTwoSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    train_model(modelSequential, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
+    # modelSequential = ConvNetTwoSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    # train_model(modelSequential, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
 
     # RUNNING DATA PARALLELISM
-    # modelDataParallel = ConvNetOneDataParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    # train_model(modelDataParallel, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, True)
+    modelDataParallel = ConvNetOneDataParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    train_model(modelDataParallel, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, True)
