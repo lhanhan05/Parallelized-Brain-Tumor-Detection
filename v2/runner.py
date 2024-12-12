@@ -6,7 +6,6 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from conv1d_sequential import ConvNetOneSequential
 from conv2d_sequential import ConvNetTwoSequential
-from conv3d_sequential import ConvNetThreeSequential
 
 
 def img_to_matrix(path):
@@ -116,20 +115,7 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
     print("Best Test Accuracy : {}".format(np.max(test_accus)))
     print("Elapsed Time: {}s".format(elapsed_time))
     
-    # fig, axs = plt.subplots(2)
-    
-    # axs[0].plot(idxs, train_losses, label= 'train loss')
-    # axs[0].plot(idxs, test_losses, label= 'test loss')
-   
-    # axs[1].plot(idxs, train_accus, label= 'train accuracy')
-    # axs[1].plot(idxs, test_accus, label= 'test accuracy')
-    # axs[0].set_ylabel('Loss')
-    # axs[0].legend(loc='upper right')
-    # axs[1].set_xlabel('Epoch Number')
-    # axs[1].set_ylabel('Accuracy')
-    # axs[1].legend(loc='upper left')
-    # plt.show()
-    fig, axs = plt.subplots(3, 1, figsize=(10, 15))
+    fig, axs = plt.subplots(2, 1, figsize=(10, 10))
     axs[0].plot(idxs, train_losses, label='train loss')
     axs[0].plot(idxs, test_losses, label='test loss')
     axs[0].set_ylabel('Loss')
@@ -140,12 +126,11 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
     axs[1].set_ylabel('Accuracy')
     axs[1].legend(loc='upper left')
     
-    axs[2].plot(idxs, total_times, label='time per epoch')
-    axs[2].set_ylabel('Time (seconds)')
-    axs[2].legend(loc='upper right')
-    axs[2].set_xlabel('Epoch Number')
-    plt.savefig('training_results.png')
-    plt.show()
+
+    plt.savefig('1d_seq.png')
+    # plt.savefig('2d_seq.png')
+    print("Total Times per Epoch:", total_times)
+
 
 if __name__ == '__main__':
     BATCH_SIZE = 64
@@ -158,6 +143,5 @@ if __name__ == '__main__':
 
     model = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
     # model = ConvNetTwoSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    # model = ConvNetThreeSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5), dropout = .2)
 
     train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
