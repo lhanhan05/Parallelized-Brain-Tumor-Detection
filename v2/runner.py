@@ -90,34 +90,33 @@ def train_model(model, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trai
         print("Epoch {} done: {}, {}, {}, {}, {}s".format(i, train_loss, train_accu, test_loss, test_accu, curr_time))
 
     
-    print("Best Training Loss: {}".format(np.min(train_losses)))
-    print("Best Test Loss: {}".format(np.min(test_losses)))
-    print("Best Train Accuracy: {}".format(np.max(train_accus)))
-    print("Best Test Accuracy : {}".format(np.max(test_accus)))
-    print("Elapsed Time: {}s".format(np.max(total_times)))
+    print("Training Loss: ", train_losses)
+    print("Test Loss: ", test_losses)
+    print("Train Accuracy: ", train_accus)
+    print("Test Accuracy : ", test_accus)
+    print("Elapsed Time: ", total_times)
     
-    fig, axs = plt.subplots(2, 1, figsize=(10, 10))
-    axs[0].plot(idxs, train_losses, label='train loss')
-    axs[0].plot(idxs, test_losses, label='test loss')
-    axs[0].set_ylabel('Loss')
-    axs[0].legend(loc='upper right')
+    # fig, axs = plt.subplots(2, 1, figsize=(10, 10))
+    # axs[0].plot(idxs, train_losses, label='train loss')
+    # axs[0].plot(idxs, test_losses, label='test loss')
+    # axs[0].set_ylabel('Loss')
+    # axs[0].legend(loc='upper right')
     
-    axs[1].plot(idxs, train_accus, label='train accuracy')
-    axs[1].plot(idxs, test_accus, label='test accuracy')
-    axs[1].set_ylabel('Accuracy')
-    axs[1].legend(loc='upper left')
+    # axs[1].plot(idxs, train_accus, label='train accuracy')
+    # axs[1].plot(idxs, test_accus, label='test accuracy')
+    # axs[1].set_ylabel('Accuracy')
+    # axs[1].legend(loc='upper left')
     
 
-    plt.savefig('1d_seq.png')
+    # plt.savefig('1d_seq.png')
     # plt.savefig('2d_seq.png')
 
     # plt.savefig('1d_data.png')
     # plt.savefig('2d_data.png')
-    print("Total Times per Epoch:", total_times)
 
 
 if __name__ == '__main__':
-    BATCH_SIZE = 64
+    BATCH_SIZE = 256
     LEARNING_RATE = 0.001
     MOMENTUM = 0.95
     EPOCHS = 50
