@@ -79,21 +79,21 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
     if is_data_parallel:
         multiprocessing.Manager().register('ParamServer', ParamServer)
         manager = multiprocessing.Manager()
-        param_server = manager.ParamServer(model, LEARNING_RATE, MOMENTUM)
-    # elif is_pipeline_parallel:
-    #     multiprocessing.Manager().register('PipelineServer', PipelineServer)
-    #     manager = multiprocessing.Manager()
-    #     pipeline_server = manager.PipelineServer(model)
+        server = manager.ParamServer(model, LEARNING_RATE, MOMENTUM)
+    elif is_pipeline_parallel:
+        multiprocessing.Manager().register('PipelineServer', PipelineServer)
+        manager = multiprocessing.Manager()
+        server = manager.PipelineServer(model)
     for i in tqdm(range(EPOCHS)):
         if is_data_parallel:
-            train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(param_server, num_conv, BATCH_SIZE, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+            train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(server, num_conv, BATCH_SIZE, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         elif is_pipeline_parallel:
-            train_loss, train_accu, test_loss, test_accu = train_epoch_pipeline_parallel(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+            train_loss, train_accu, test_loss, test_accu = train_epoch_pipeline_parallel(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         else:
             train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         
-        if is_data_parallel:
-            updated_weights = param_server.get_weights()
+        if is_data_parallel or is_pipeline_parallel:
+            updated_weights = server.get_weights()
             model.override_weights(updated_weights)
 
         curr_time = time.time()-start_time

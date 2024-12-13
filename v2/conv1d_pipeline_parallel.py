@@ -1,5 +1,4 @@
 from modules import Transform, Conv, ReLU, Sigmoid, LeakyReLU, MaxPool, Flatten, LinearLayer, SoftMaxCrossEntropyLoss
-from queue import Queue
 
 class ConvNetOnePipelineParallel(Transform):
     def __init__(self, out_dim=20, input_shape=(3,32,32), filter_shape=(1,5,5)):
@@ -23,7 +22,6 @@ class ConvNetOnePipelineParallel(Transform):
         self.flatten = Flatten(False)
         self.linear = LinearLayer(self.conv_k_c*self.pool_w_out*self.pool_h_out,self.out_dim, False)
         self.loss = SoftMaxCrossEntropyLoss(False)
-        self.stages = ['loss', 'linear', 'flatten', 'maxpool', 'relu', 'conv']
 
     def forward(self, inputs, y_labels):
         conv_out = self.conv.forward(inputs)
@@ -42,3 +40,13 @@ class ConvNetOnePipelineParallel(Transform):
 
     def get_stages(self):
         return self.stages
+    
+    def override_weights(self, new_weights):
+        new_conv, new_linear = new_weights
+        conv_weights, conv_biases = new_conv
+        linear_weights, linear_biases = new_linear
+        self.linear.override_weights(linear_weights, linear_biases)
+        self.conv.override_weights(conv_weights, conv_biases)
+
+    def get_weights(self):
+        return (self.conv.get_wb_conv() ,self.linear.get_wb_fc())

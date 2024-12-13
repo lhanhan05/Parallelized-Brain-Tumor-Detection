@@ -134,10 +134,13 @@ class Conv(Transform):
         return output_transpose
 
     def backward(self, dloss, input_shape=None):
+        print("hi")
+        print(np.shape(dloss))
         if not self.is_data_parallel:
             N, C, H, W = self.N, self.C, self.H, self.W
         else:
             N, C, H, W = input_shape
+        print(N, C, H, W)
         weights_transpose = np.transpose(self.weights, (1,2,3,0))
         weights_reshape = np.reshape(weights_transpose, (self.C*self.k_height*self.k_width, self.num_filters))
         dloss_transpose = np.transpose(dloss, (1,2,3,0))
