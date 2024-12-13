@@ -31,7 +31,7 @@ class PipelineWorkerOne(multiprocessing.Process):
         self.all_y_labels = all_y_labels
         self.learning_rate = learning_rate
         self.momentum_coeff = momentum_coeff
-        self.model = shared_model.model
+        # self.model = shared_model.model
         self.shared_model = shared_model
         self.forward_queues = forward_queues
         self.backward_queues = backward_queues
@@ -40,23 +40,23 @@ class PipelineWorkerOne(multiprocessing.Process):
         for i in range(self.num_batches):
             if self.stage == 'conv':
                 inputs = self.forward_queues['conv'].get()
-                conv_out = self.model.conv.forward(inputs)
+                conv_out = self.shared_model.model.conv.forward(inputs)
                 self.forward_queues['relu'].put(conv_out)
             elif self.stage == 'relu':
                 conv_out = self.forward_queues['relu'].get()
-                acti_out = self.model.relu.forward(conv_out)
+                acti_out = self.shared_model.model.relu.forward(conv_out)
                 self.forward_queues['maxpool'].put(acti_out)
             elif self.stage == 'maxpool':
                 acti_out = self.forward_queues['maxpool'].get()
-                maxpool_out = self.model.maxpool.forward(acti_out)
+                maxpool_out = self.shared_model.model.maxpool.forward(acti_out)
                 self.forward_queues['flatten'].put(maxpool_out)
             elif self.stage == 'flatten':
                 maxpool_out = self.forward_queues['flatten'].get()
-                flatten_out = self.model.flatten.forward(maxpool_out)
+                flatten_out = self.shared_model.model.flatten.forward(maxpool_out)
                 self.forward_queues['linear'].put(flatten_out)
             elif self.stage == 'linear':
                 flatten_out = self.forward_queues['linear'].get()
-                linear_out = self.model.linear.forward(flatten_out)
+                linear_out = self.shared_model.model.linear.forward(flatten_out)
                 self.forward_queues['loss'].put(linear_out)
             elif self.stage == 'loss':
                 linear_out = self.forward_queues['loss'].get()
@@ -93,6 +93,7 @@ class PipelineWorkerOne(multiprocessing.Process):
                 self.model.conv.backward(relu_grad)
                 self.model.conv.update(self.learning_rate, self.momentum_coeff)
             print(f"{self.stage} backward")
+            
 
     def run(self):
         if self.is_forward:
@@ -115,6 +116,9 @@ def train_epoch_pipeline_parallel(model, batch_size, learning_rate, momentum_coe
     xBatches = []
 
     with multiprocessing.Manager() as manager:
+        shared_model = manager.Namespace()
+        shared_model.model = model
+
         forward_queues = {
             'conv': manager.Queue(),
             'relu': manager.Queue(),
@@ -132,8 +136,7 @@ def train_epoch_pipeline_parallel(model, batch_size, learning_rate, momentum_coe
             'relu': manager.Queue(),
             'conv': manager.Queue()
         }
-        shared_model = manager.Namespace()
-        shared_model.model = model
+    
 
         for i in range(num_batches):
             start = i * third_batch
