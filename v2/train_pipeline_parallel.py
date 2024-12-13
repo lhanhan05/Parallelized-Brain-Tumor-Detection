@@ -8,35 +8,46 @@ class PipelineServer():
         self.model = model
         self.stages = ['loss', 'linear', 'flatten', 'maxpool', 'relu', 'conv']
         self.losses = []
+        self.locks = {
+            'loss': multiprocessing.Lock(),
+            'linear': multiprocessing.Lock(),
+            'flatten': multiprocessing.Lock(),
+            'maxpool': multiprocessing.Lock(),
+            'relu': multiprocessing.Lock(),
+            'conv': multiprocessing.Lock(),
+        }
+
 
     def forward(self, stage, input):
-        if stage == 'conv':
-            return self.model.conv.forward(input)
-        elif stage == 'relu':
-            return self.model.relu.forward(input)
-        elif stage == 'maxpool':
-            return self.model.maxpool.forward(input)
-        elif stage == 'flatten':
-            return self.model.flatten.forward(input)
-        elif stage == 'linear':
-            return self.model.linear.forward(input)
-        elif stage == 'loss':
-            linear_out, labels = input
-            return self.model.loss.forward(linear_out, labels, True)
+        with self.locks[stage]:
+            if stage == 'conv':
+                return self.model.conv.forward(input)
+            elif stage == 'relu':
+                return self.model.relu.forward(input)
+            elif stage == 'maxpool':
+                return self.model.maxpool.forward(input)
+            elif stage == 'flatten':
+                return self.model.flatten.forward(input)
+            elif stage == 'linear':
+                return self.model.linear.forward(input)
+            elif stage == 'loss':
+                linear_out, labels = input
+                return self.model.loss.forward(linear_out, labels, True)
         
     def backward(self, stage, input):
-        if stage == 'conv':
-            return self.model.conv.backward(input)
-        elif stage == 'relu':
-            return self.model.relu.backward(input)
-        elif stage == 'maxpool':
-            return self.model.maxpool.backward(input)
-        elif stage == 'flatten':
-            return self.model.flatten.backward(input)
-        elif stage == 'linear':
-            return self.model.linear.backward(input)
-        elif stage == 'loss':
-            return self.model.loss.backward()
+        with self.locks[stage]:
+            if stage == 'conv':
+                return self.model.conv.backward(input)
+            elif stage == 'relu':
+                return self.model.relu.backward(input)
+            elif stage == 'maxpool':
+                return self.model.maxpool.backward(input)
+            elif stage == 'flatten':
+                return self.model.flatten.backward(input)
+            elif stage == 'linear':
+                return self.model.linear.backward(input)
+            elif stage == 'loss':
+                return self.model.loss.backward()
         
     def update(self, stage, learning_rate, momentum_coeff):
         if stage == 'linear':

@@ -31,6 +31,8 @@ class ReLU(Transform):
     def backward(self, grad_wrt_out, x_mult=None):
         if self.is_data_parallel:
             self.x_mult = x_mult
+        if grad_wrt_out.shape != self.x_mult.shape:
+            grad_wrt_out = grad_wrt_out[:self.x_mult.shape[0], :self.x_mult.shape[1]]
         return self.x_mult*grad_wrt_out
     
 class Sigmoid(Transform):
@@ -134,24 +136,23 @@ class Conv(Transform):
         return output_transpose
 
     def backward(self, dloss, input_shape=None):
-        print("hi")
-        print(np.shape(dloss))
         if not self.is_data_parallel:
             N, C, H, W = self.N, self.C, self.H, self.W
         else:
             N, C, H, W = input_shape
-        print(N, C, H, W)
+        if dloss.shape[0] > N:
+            dloss = dloss[:N]
         weights_transpose = np.transpose(self.weights, (1,2,3,0))
-        weights_reshape = np.reshape(weights_transpose, (self.C*self.k_height*self.k_width, self.num_filters))
+        weights_reshape = np.reshape(weights_transpose, (C*self.k_height*self.k_width, self.num_filters))
         dloss_transpose = np.transpose(dloss, (1,2,3,0))
-        dloss_reshape = np.reshape(dloss_transpose, (self.num_filters, self.out_height*self.out_width*self.N))
+        dloss_reshape = np.reshape(dloss_transpose, (self.num_filters, self.out_height*self.out_width*N))
         mul_output = np.matmul(weights_reshape, dloss_reshape) 
         self.grad_inputs = im2col_bw(mul_output, (N, C, H, W), self.k_height, self.k_width, self.pad, self.stride)
 
         x_col = im2col(self.X, self.k_height, self.k_width, self.pad, self.stride)
         x_col_transpose = np.transpose(x_col)
         grad_weight_pre = np.matmul(dloss_reshape, x_col_transpose)
-        self.grad_weights = np.reshape(grad_weight_pre, (self.num_filters, self.C, self.k_height, self.k_width))
+        self.grad_weights = np.reshape(grad_weight_pre, (self.num_filters, C, self.k_height, self.k_width))
 
         self.grad_biases = np.reshape(np.sum(dloss_reshape, axis=1), (self.num_filters,1))
 
