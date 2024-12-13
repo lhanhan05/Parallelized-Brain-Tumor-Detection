@@ -3,29 +3,38 @@ import multiprocessing
 
 from queue import Queue
 
-class PipelineServer():
+class PipelineServerTwo():
     def __init__(self, model):
         self.model = model
-        self.stages = ['loss', 'linear', 'flatten', 'maxpool', 'relu', 'conv']
+        self.stages = ['loss', 'linear', 'flatten', 'maxpool2', 'relu2', 'conv2', 'maxpool1', 'relu1', 'conv1']
         self.losses = []
         self.locks = {
             'loss': multiprocessing.Lock(),
             'linear': multiprocessing.Lock(),
             'flatten': multiprocessing.Lock(),
-            'maxpool': multiprocessing.Lock(),
-            'relu': multiprocessing.Lock(),
-            'conv': multiprocessing.Lock(),
+            'maxpool2': multiprocessing.Lock(),
+            'relu2': multiprocessing.Lock(),
+            'conv2': multiprocessing.Lock(),
+            'maxpool1': multiprocessing.Lock(),
+            'relu1': multiprocessing.Lock(),
+            'conv1': multiprocessing.Lock(),
         }
 
 
     def forward(self, stage, input):
         with self.locks[stage]:
-            if stage == 'conv':
-                return self.model.conv.forward(input)
-            elif stage == 'relu':
-                return self.model.relu.forward(input)
-            elif stage == 'maxpool':
-                return self.model.maxpool.forward(input)
+            if stage == 'conv1':
+                return self.model.conv1.forward(input)
+            elif stage == 'relu1':
+                return self.model.relu1.forward(input)
+            elif stage == 'maxpool1':
+                return self.model.maxpool1.forward(input)
+            elif stage == 'conv2':
+                return self.model.conv2.forward(input)
+            elif stage == 'relu2':
+                return self.model.relu2.forward(input)
+            elif stage == 'maxpool2':
+                return self.model.maxpool2.forward(input)
             elif stage == 'flatten':
                 return self.model.flatten.forward(input)
             elif stage == 'linear':
@@ -36,12 +45,18 @@ class PipelineServer():
         
     def backward(self, stage, input):
         with self.locks[stage]:
-            if stage == 'conv':
-                return self.model.conv.backward(input)
-            elif stage == 'relu':
-                return self.model.relu.backward(input)
-            elif stage == 'maxpool':
-                return self.model.maxpool.backward(input)
+            if stage == 'conv1':
+                return self.model.conv1.backward(input)
+            elif stage == 'relu1':
+                return self.model.relu1.backward(input)
+            elif stage == 'maxpool1':
+                return self.model.maxpool1.backward(input)
+            elif stage == 'conv2':
+                return self.model.conv2.backward(input)
+            elif stage == 'relu2':
+                return self.model.relu2.backward(input)
+            elif stage == 'maxpool2':
+                return self.model.maxpool2.backward(input)
             elif stage == 'flatten':
                 return self.model.flatten.backward(input)
             elif stage == 'linear':
@@ -52,8 +67,10 @@ class PipelineServer():
     def update(self, stage, learning_rate, momentum_coeff):
         if stage == 'linear':
             self.model.linear.update(learning_rate, momentum_coeff)
-        elif stage == 'conv':
-            self.model.conv.update(learning_rate, momentum_coeff)
+        elif stage == 'conv1':
+            self.model.conv1.update(learning_rate, momentum_coeff)
+        elif stage == 'conv2':
+            self.model.conv2.update(learning_rate, momentum_coeff)
         
     def get_stages(self):
         return self.stages
@@ -75,7 +92,7 @@ class PipelineServer():
         return train_loss, train_accu, test_loss, test_accu
 
 
-class PipelineWorkerOne(multiprocessing.Process):
+class PipelineWorkerTwo(multiprocessing.Process):
     def __init__(self, stage, is_forward, server, num_batches, all_y_labels, learning_rate, momentum_coeff, forward_queues, backward_queues):
         super().__init__()
         self.is_forward = is_forward
@@ -90,18 +107,30 @@ class PipelineWorkerOne(multiprocessing.Process):
 
     def process_forwards(self):
         for i in range(self.num_batches):
-            if self.stage == 'conv':
-                inputs = self.forward_queues['conv'].get()
-                conv_out = self.server.forward('conv', inputs)
-                self.forward_queues['relu'].put(conv_out)
-            elif self.stage == 'relu':
-                conv_out = self.forward_queues['relu'].get()
-                acti_out = self.server.forward('relu', conv_out)
-                self.forward_queues['maxpool'].put(acti_out)
-            elif self.stage == 'maxpool':
-                acti_out = self.forward_queues['maxpool'].get()
-                maxpool_out = self.server.forward('maxpool', acti_out)
-                self.forward_queues['flatten'].put(maxpool_out)
+            if self.stage == 'conv1':
+                inputs = self.forward_queues['conv1'].get()
+                conv1_out = self.server.forward('conv1', inputs)
+                self.forward_queues['relu1'].put(conv1_out)
+            elif self.stage == 'relu1':
+                conv1_out = self.forward_queues['relu1'].get()
+                acti1_out = self.server.forward('relu1', conv1_out)
+                self.forward_queues['maxpool1'].put(acti1_out)
+            elif self.stage == 'maxpool1':
+                acti1_out = self.forward_queues['maxpool1'].get()
+                maxpool1_out = self.server.forward('maxpool1', acti1_out)
+                self.forward_queues['conv2'].put(maxpool1_out)
+            elif self.stage == 'conv2':
+                inputs = self.forward_queues['conv2'].get()
+                conv2_out = self.server.forward('conv2', inputs)
+                self.forward_queues['relu2'].put(conv2_out)
+            elif self.stage == 'relu2':
+                conv2_out = self.forward_queues['relu2'].get()
+                acti2_out = self.server.forward('relu2', conv2_out)
+                self.forward_queues['maxpool2'].put(acti2_out)
+            elif self.stage == 'maxpool2':
+                acti2_out = self.forward_queues['maxpool2'].get()
+                maxpool2_out = self.server.forward('maxpool2', acti2_out)
+                self.forward_queues['flatten'].put(maxpool2_out)
             elif self.stage == 'flatten':
                 maxpool_out = self.forward_queues['flatten'].get()
                 flatten_out = self.server.forward('flatten', maxpool_out)
@@ -129,19 +158,32 @@ class PipelineWorkerOne(multiprocessing.Process):
             elif self.stage == 'flatten':
                 linear_grad = self.backward_queues['flatten'].get()
                 flatten_grad = self.server.backward('flatten', linear_grad[2])
-                self.backward_queues['maxpool'].put(flatten_grad)
-            elif self.stage == 'maxpool':
-                flatten_grad = self.backward_queues['maxpool'].get()
-                maxpool_grad = self.server.backward('maxpool', flatten_grad)
-                self.backward_queues['relu'].put(maxpool_grad)
-            elif self.stage == 'relu':
-                maxpool_grad = self.backward_queues['relu'].get()
-                relu_grad = self.server.backward('relu', maxpool_grad)
-                self.backward_queues['conv'].put(relu_grad)
-            elif self.stage == 'conv':
-                relu_grad = self.backward_queues['conv'].get()
-                self.server.backward('conv', relu_grad)
-                self.server.update('conv', self.learning_rate, self.momentum_coeff)            
+                self.backward_queues['maxpool2'].put(flatten_grad)
+            elif self.stage == 'maxpool2':
+                flatten_grad = self.backward_queues['maxpool2'].get()
+                maxpool_grad = self.server.backward('maxpool2', flatten_grad)
+                self.backward_queues['relu2'].put(maxpool_grad)
+            elif self.stage == 'relu2':
+                maxpool2_grad = self.backward_queues['relu2'].get()
+                relu2_grad = self.server.backward('relu2', maxpool2_grad)
+                self.backward_queues['conv2'].put(relu2_grad)
+            elif self.stage == 'conv2':
+                relu2_grad = self.backward_queues['conv2'].get()
+                conv2_grad = self.server.backward('conv2', relu2_grad)
+                self.backward_queues['maxpool1'].put(conv2_grad)
+                self.server.update('conv2', self.learning_rate, self.momentum_coeff)
+            elif self.stage == 'maxpool1':
+                conv2_grad = self.backward_queues['maxpool1'].get()
+                maxpool1_grad = self.server.backward('maxpool1', conv2_grad[2])
+                self.backward_queues['relu1'].put(maxpool1_grad)
+            elif self.stage == 'relu1':
+                maxpool1_grad = self.backward_queues['relu1'].get()
+                relu1_grad = self.server.backward('relu1', maxpool1_grad)
+                self.backward_queues['conv1'].put(relu1_grad)
+            elif self.stage == 'conv1':
+                relu1_grad = self.backward_queues['conv1'].get()
+                conv1_grad = self.server.backward('conv1', relu1_grad)
+                self.server.update('conv1', self.learning_rate, self.momentum_coeff)            
 
     def run(self):
         if self.is_forward:
@@ -149,7 +191,7 @@ class PipelineWorkerOne(multiprocessing.Process):
         else:
             self.process_backwards()
 
-def train_epoch_pipeline_parallel(server, batch_size, learning_rate, momentum_coeff, trainX, trainY, pureTrainY, testX, testY, pureTestY):
+def train_epoch_pipeline_parallel_2d(server, batch_size, learning_rate, momentum_coeff, trainX, trainY, pureTrainY, testX, testY, pureTestY):
     num_images = np.shape(trainX)[0]
     num_test = np.shape(testX)[0]
     permut = np.random.choice(num_images, num_images, replace=False)
@@ -164,9 +206,12 @@ def train_epoch_pipeline_parallel(server, batch_size, learning_rate, momentum_co
 
     with multiprocessing.Manager() as manager:
         forward_queues = {
-            'conv': manager.Queue(),
-            'relu': manager.Queue(),
-            'maxpool': manager.Queue(),
+            'conv1': manager.Queue(),
+            'relu1': manager.Queue(),
+            'maxpool1': manager.Queue(),
+            'conv2': manager.Queue(),
+            'relu2': manager.Queue(),
+            'maxpool2': manager.Queue(),
             'flatten': manager.Queue(),
             'linear': manager.Queue(),
             'loss': manager.Queue(),
@@ -176,9 +221,12 @@ def train_epoch_pipeline_parallel(server, batch_size, learning_rate, momentum_co
             'loss': manager.Queue(),
             'linear': manager.Queue(),
             'flatten': manager.Queue(),
-            'maxpool': manager.Queue(),
-            'relu': manager.Queue(),
-            'conv': manager.Queue()
+            'maxpool2': manager.Queue(),
+            'relu2': manager.Queue(),
+            'conv2': manager.Queue(),
+            'maxpool1': manager.Queue(),
+            'relu1': manager.Queue(),
+            'conv1': manager.Queue()
         }
     
         for i in range(num_batches):
@@ -188,13 +236,13 @@ def train_epoch_pipeline_parallel(server, batch_size, learning_rate, momentum_co
             currY = np.concatenate([trainY[start:end], trainY[start + third_images:end + third_images], trainY[start + 2 * third_images:end + 2 * third_images]])
 
             xBatches.append(currX)
-            forward_queues['conv'].put(currX)
+            forward_queues['conv1'].put(currX)
             yBatches.append(currY)
 
         workers = []
         for stage in server.get_stages():
-            w1 = PipelineWorkerOne(stage, True, server, num_batches, yBatches, learning_rate, momentum_coeff, forward_queues, backward_queues)
-            w2 = PipelineWorkerOne(stage, False, server, num_batches, yBatches, learning_rate, momentum_coeff, forward_queues, backward_queues)
+            w1 = PipelineWorkerTwo(stage, True, server, num_batches, yBatches, learning_rate, momentum_coeff, forward_queues, backward_queues)
+            w2 = PipelineWorkerTwo(stage, False, server, num_batches, yBatches, learning_rate, momentum_coeff, forward_queues, backward_queues)
             workers.append(w1)
             workers.append(w2)
 

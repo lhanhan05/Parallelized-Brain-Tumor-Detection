@@ -10,10 +10,12 @@ from conv1d_data_parallel import ConvNetOneDataParallel
 from conv2d_sequential import ConvNetTwoSequential
 from conv2d_data_parallel import ConvNetTwoDataParallel
 from conv1d_pipeline_parallel import ConvNetOnePipelineParallel
+from conv2d_pipeline_parallel import ConvNetTwoPipelineParallel
 
 from train_sequential import train_epoch_sequential
 from train_data_parallel import train_epoch_data_parallel, ParamServer
-from train_pipeline_parallel import train_epoch_pipeline_parallel, PipelineServer
+from train_1d_pipeline_parallel import train_epoch_pipeline_parallel_1d, PipelineServerOne
+from train_2d_pipeline_parallel import train_epoch_pipeline_parallel_2d, PipelineServerTwo
 
 import multiprocessing
 def img_to_matrix(path):
@@ -81,14 +83,22 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
         manager = multiprocessing.Manager()
         server = manager.ParamServer(model, LEARNING_RATE, MOMENTUM)
     elif is_pipeline_parallel:
-        multiprocessing.Manager().register('PipelineServer', PipelineServer)
-        manager = multiprocessing.Manager()
-        server = manager.PipelineServer(model)
+        if num_conv == 1:
+            multiprocessing.Manager().register('PipelineServerOne', PipelineServerOne)
+            manager = multiprocessing.Manager()
+            server = manager.PipelineServerOne(model)
+        else: 
+            multiprocessing.Manager().register('PipelineServerTwo', PipelineServerTwo)
+            manager = multiprocessing.Manager()
+            server = manager.PipelineServerTwo(model)
     for i in tqdm(range(EPOCHS)):
         if is_data_parallel:
             train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(server, num_conv, BATCH_SIZE, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         elif is_pipeline_parallel:
-            train_loss, train_accu, test_loss, test_accu = train_epoch_pipeline_parallel(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+            if num_conv == 1:
+                train_loss, train_accu, test_loss, test_accu = train_epoch_pipeline_parallel_1d(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+            else:
+                train_loss, train_accu, test_loss, test_accu = train_epoch_pipeline_parallel_2d(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         else:
             train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         
@@ -137,6 +147,9 @@ if __name__ == '__main__':
     # train_model(modelTwoDataParallel, 2, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, True, False)
 
     # Running PIPELINE PARALLELISM
-    modelOnePipelineParallel = ConvNetOnePipelineParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    train_model(modelOnePipelineParallel, 1, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False, True)
+    # modelOnePipelineParallel = ConvNetOnePipelineParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    # train_model(modelOnePipelineParallel, 1, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False, True)
+
+    modelTwoPipelineParallel = ConvNetTwoPipelineParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    train_model(modelTwoPipelineParallel, 2, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False, True)
 

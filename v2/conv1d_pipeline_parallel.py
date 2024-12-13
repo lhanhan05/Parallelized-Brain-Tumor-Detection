@@ -37,9 +37,6 @@ class ConvNetOnePipelineParallel(Transform):
 
     def update(self, learning_rate, momentum_coeff):
         pass
-
-    def get_stages(self):
-        return self.stages
     
     def override_weights(self, new_weights):
         new_conv, new_linear = new_weights
