@@ -81,6 +81,10 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
             train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(param_server, num_conv, BATCH_SIZE, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         else:
             train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+        
+        updated_weights = param_server.get_weights()
+        model.override_weights(updated_weights)
+
         curr_time = time.time()-start_time
         idxs.append(i)
         train_losses.append(train_loss)
@@ -96,24 +100,6 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
     print("Train Accuracy: ", train_accus)
     print("Test Accuracy : ", test_accus)
     print("Elapsed Time: ", total_times)
-    
-    # fig, axs = plt.subplots(2, 1, figsize=(10, 10))
-    # axs[0].plot(idxs, train_losses, label='train loss')
-    # axs[0].plot(idxs, test_losses, label='test loss')
-    # axs[0].set_ylabel('Loss')
-    # axs[0].legend(loc='upper right')
-    
-    # axs[1].plot(idxs, train_accus, label='train accuracy')
-    # axs[1].plot(idxs, test_accus, label='test accuracy')
-    # axs[1].set_ylabel('Accuracy')
-    # axs[1].legend(loc='upper left')
-    
-
-    # plt.savefig('1d_seq.png')
-    # plt.savefig('2d_seq.png')
-
-    # plt.savefig('1d_data.png')
-    # plt.savefig('2d_data.png')
 
 
 if __name__ == '__main__':
@@ -127,10 +113,11 @@ if __name__ == '__main__':
 
     # RUNNING SEQUENTIAL
     # modelOneSequential = ConvNetOneSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    # train_model(modelSequential, 1, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
+    # train_model(modelOneSequential, 1, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
 
     # modelTwoSequential = ConvNetTwoSequential(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    # train_model(modelSequential, 2, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
+    # train_model(modelTwoSequential, 2, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False)
+
 
     # RUNNING DATA PARALLELISM
     # modelOneDataParallel = ConvNetOneDataParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
