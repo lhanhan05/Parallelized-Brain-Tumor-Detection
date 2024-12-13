@@ -75,10 +75,6 @@ def train_epoch_data_parallel(param_server, num_conv, batch_size, trainX, trainY
         currX = np.concatenate([trainX[start:end], trainX[start + third_images:end + third_images], trainX[start + 2*third_images:end + 2*third_images]])
         currY = np.concatenate([trainY[start:end], trainY[start + third_images:end + third_images], trainY[start + 2*third_images:end + 2*third_images]])
         curr_worker = ParamWorker(num_conv, param_server, currX, currY)
-        # (curr_loss, _, parallel_updates) = model.forward(currX, currY)
-        # linear_out, conv_out = model.backward(currX, parallel_updates)
-        # losses.append(curr_loss)
-        # model.update(learning_rate, momentum_coeff, linear_out, conv_out)
         param_workers.append(curr_worker)
     
     for worker in param_workers:
