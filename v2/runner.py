@@ -92,8 +92,9 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
         else:
             train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         
-        updated_weights = param_server.get_weights()
-        model.override_weights(updated_weights)
+        if is_data_parallel:
+            updated_weights = param_server.get_weights()
+            model.override_weights(updated_weights)
 
         curr_time = time.time()-start_time
         idxs.append(i)
