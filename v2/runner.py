@@ -78,6 +78,7 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
     total_times = []
     idxs = []
     start_time = time.time()
+    idle_times = []
     if is_data_parallel:
         multiprocessing.Manager().register('ParamServer', ParamServer)
         manager = multiprocessing.Manager()
@@ -93,12 +94,12 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
             server = manager.PipelineServerTwo(model)
     for i in tqdm(range(EPOCHS)):
         if is_data_parallel:
-            train_loss, train_accu, test_loss, test_accu = train_epoch_data_parallel(server, num_conv, BATCH_SIZE, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+            train_loss, train_accu, test_loss, test_accu, total_idle_time = train_epoch_data_parallel(server, num_conv, BATCH_SIZE, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         elif is_pipeline_parallel:
             if num_conv == 1:
-                train_loss, train_accu, test_loss, test_accu = train_epoch_pipeline_parallel_1d(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+                train_loss, train_accu, test_loss, test_accu, total_idle_time = train_epoch_pipeline_parallel_1d(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
             else:
-                train_loss, train_accu, test_loss, test_accu = train_epoch_pipeline_parallel_2d(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
+                train_loss, train_accu, test_loss, test_accu, total_idle_time = train_epoch_pipeline_parallel_2d(server, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         else:
             train_loss, train_accu, test_loss, test_accu = train_epoch_sequential(model, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY)
         
@@ -113,18 +114,23 @@ def train_model(model, num_conv, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, tr
         test_losses.append(test_loss)
         test_accus.append(test_accu)
         total_times.append(curr_time)
+        if is_data_parallel or is_pipeline_parallel:
+            idle_times.append(total_idle_time)
         print("Epoch {} done: {}, {}, {}, {}, {}s".format(i, train_loss, train_accu, test_loss, test_accu, curr_time))
+
 
     
     print("Training Loss: ", train_losses)
     print("Test Loss: ", test_losses)
     print("Train Accuracy: ", train_accus)
     print("Test Accuracy : ", test_accus)
-    print("Elapsed Time: ", total_times)
+    # print("Elapsed Time: ", total_times)
+    print("IDLE TIMES: ", idle_times)
+    
 
 
 if __name__ == '__main__':
-    BATCH_SIZE = 256
+    BATCH_SIZE = 64
     LEARNING_RATE = 0.001
     MOMENTUM = 0.95
     EPOCHS = 50
@@ -147,9 +153,9 @@ if __name__ == '__main__':
     # train_model(modelTwoDataParallel, 2, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, True, False)
 
     # Running PIPELINE PARALLELISM
-    # modelOnePipelineParallel = ConvNetOnePipelineParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    # train_model(modelOnePipelineParallel, 1, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False, True)
+    modelOnePipelineParallel = ConvNetOnePipelineParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    train_model(modelOnePipelineParallel, 1, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False, True)
 
-    modelTwoPipelineParallel = ConvNetTwoPipelineParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
-    train_model(modelTwoPipelineParallel, 2, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False, True)
+    # modelTwoPipelineParallel = ConvNetTwoPipelineParallel(out_dim=4, input_shape=(3,64,64), filter_shape=(1,5,5))
+    # train_model(modelTwoPipelineParallel, 2, EPOCHS, BATCH_SIZE, LEARNING_RATE, MOMENTUM, trainX, trainY, pureTrainY, testX, testY, pureTestY, False, True)
 

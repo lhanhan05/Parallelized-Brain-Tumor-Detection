@@ -1,7 +1,9 @@
 import numpy as np
 import multiprocessing
-
+import time
 from queue import Queue
+
+global_idle_times = [] # Global list to store idle times
 
 class PipelineServerOne():
     def __init__(self, model):
@@ -16,6 +18,7 @@ class PipelineServerOne():
             'relu': multiprocessing.Lock(),
             'conv': multiprocessing.Lock(),
         }
+        self.idle_times =  multiprocessing.Manager.list() # Track idle times
 
 
     def forward(self, stage, input):
@@ -60,11 +63,12 @@ class PipelineServerOne():
     
     def get_weights(self):
         return self.model.get_weights()
+        
 
     def reset_losses(self):
         self.losses = []
 
-    def get_metrics(self, trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test):
+    def get_metrics(self, trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test, total_idle_time):
         train_loss = np.sum(self.losses)/num_images
         train_loss, train_pred = self.model.forward(trainX, trainY)
         train_accu = np.count_nonzero(train_pred == pureTrainY)/num_images
@@ -72,9 +76,11 @@ class PipelineServerOne():
         test_loss = test_loss/num_test
         train_loss = train_loss/num_images
         test_accu = np.count_nonzero(test_pred == pureTestY)/num_test
-        return train_loss, train_accu, test_loss, test_accu
+        return train_loss, train_accu, test_loss, test_accu, total_idle_time
 
-
+    def get_idle_times(self):
+        return self.idle_times
+    
 class PipelineWorkerOne(multiprocessing.Process):
     def __init__(self, stage, is_forward, server, num_batches, all_y_labels, learning_rate, momentum_coeff, forward_queues, backward_queues):
         super().__init__()
@@ -87,59 +93,78 @@ class PipelineWorkerOne(multiprocessing.Process):
         self.server = server
         self.forward_queues = forward_queues
         self.backward_queues = backward_queues
+        self.idle_time = 0.0  # To track idle time for this worker
+
 
     def process_forwards(self):
+        start_time = time.time()
         for i in range(self.num_batches):
+            start_idle = time.time()  # Start measuring idle time
+
             if self.stage == 'conv':
                 inputs = self.forward_queues['conv'].get()
+                self.idle_time += time.time() - start_idle
                 conv_out = self.server.forward('conv', inputs)
                 self.forward_queues['relu'].put(conv_out)
             elif self.stage == 'relu':
                 conv_out = self.forward_queues['relu'].get()
+                self.idle_time += time.time() - start_idle
                 acti_out = self.server.forward('relu', conv_out)
                 self.forward_queues['maxpool'].put(acti_out)
             elif self.stage == 'maxpool':
                 acti_out = self.forward_queues['maxpool'].get()
+                self.idle_time += time.time() - start_idle
                 maxpool_out = self.server.forward('maxpool', acti_out)
                 self.forward_queues['flatten'].put(maxpool_out)
             elif self.stage == 'flatten':
                 maxpool_out = self.forward_queues['flatten'].get()
+                self.idle_time += time.time() - start_idle
                 flatten_out = self.server.forward('flatten', maxpool_out)
                 self.forward_queues['linear'].put(flatten_out)
             elif self.stage == 'linear':
                 flatten_out = self.forward_queues['linear'].get()
+                self.idle_time += time.time() - start_idle
                 linear_out = self.server.forward('linear', flatten_out)
                 self.forward_queues['loss'].put(linear_out)
             elif self.stage == 'loss':
                 linear_out = self.forward_queues['loss'].get()
+                self.idle_time += time.time() - start_idle
                 losses, preds = self.server.forward('loss', (linear_out, self.all_y_labels[i]))
                 self.backward_queues['loss'].put(True)
 
     def process_backwards(self):
         for _ in range(self.num_batches):
+            start_idle = time.time()  # Start measuring idle time
+
             if self.stage == 'loss':
                 _ = self.backward_queues['loss'].get()
+                self.idle_time += time.time() - start_idle
                 loss_grad = self.server.backward('loss', None)
                 self.backward_queues['linear'].put(loss_grad)
             elif self.stage == 'linear':
                 loss_grad = self.backward_queues['linear'].get()
+                self.idle_time += time.time() - start_idle
                 linear_grad = self.server.backward('linear', loss_grad)
                 self.backward_queues['flatten'].put(linear_grad)
                 self.server.update('linear', self.learning_rate, self.momentum_coeff)
             elif self.stage == 'flatten':
                 linear_grad = self.backward_queues['flatten'].get()
+                self.idle_time += time.time() - start_idle
                 flatten_grad = self.server.backward('flatten', linear_grad[2])
                 self.backward_queues['maxpool'].put(flatten_grad)
             elif self.stage == 'maxpool':
                 flatten_grad = self.backward_queues['maxpool'].get()
+                self.idle_time += time.time() - start_idle
                 maxpool_grad = self.server.backward('maxpool', flatten_grad)
                 self.backward_queues['relu'].put(maxpool_grad)
             elif self.stage == 'relu':
                 maxpool_grad = self.backward_queues['relu'].get()
+                self.idle_time += time.time() - start_idle
                 relu_grad = self.server.backward('relu', maxpool_grad)
                 self.backward_queues['conv'].put(relu_grad)
             elif self.stage == 'conv':
                 relu_grad = self.backward_queues['conv'].get()
+                self.idle_time += time.time() - start_idle
                 self.server.backward('conv', relu_grad)
                 self.server.update('conv', self.learning_rate, self.momentum_coeff)            
 
@@ -148,6 +173,8 @@ class PipelineWorkerOne(multiprocessing.Process):
             self.process_forwards()
         else:
             self.process_backwards()
+
+        self.server.idle_times.append(self.idle_time)
 
 def train_epoch_pipeline_parallel_1d(server, batch_size, learning_rate, momentum_coeff, trainX, trainY, pureTrainY, testX, testY, pureTestY):
     num_images = np.shape(trainX)[0]
@@ -180,7 +207,6 @@ def train_epoch_pipeline_parallel_1d(server, batch_size, learning_rate, momentum
             'relu': manager.Queue(),
             'conv': manager.Queue()
         }
-    
         for i in range(num_batches):
             start = i * third_batch
             end = (i + 1) * third_batch
@@ -204,4 +230,5 @@ def train_epoch_pipeline_parallel_1d(server, batch_size, learning_rate, momentum
         for worker in workers:
             worker.join()
 
-        return server.get_metrics(trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test)
+        total_idle_time = sum(server.get_idle_times())
+        return server.get_metrics(trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test, total_idle_time)

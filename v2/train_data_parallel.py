@@ -2,7 +2,7 @@ import numpy as np
 from conv1d_data_parallel import ConvNetOneDataParallel
 from conv2d_data_parallel import ConvNetTwoDataParallel
 import multiprocessing
-
+import time
 class ParamServer:
     def __init__(self, model, learning_rate, momentum_coeff):
         self.model = model
@@ -10,27 +10,38 @@ class ParamServer:
         self.momentum_coeff = momentum_coeff
         self.losses = []
         self.lock = multiprocessing.Lock()
+        self.idle_times = multiprocessing.Manager().list()  # Track idle times
+
 
     def get_weights(self):
+        start_time = time.time()
         with self.lock:
+            idle_time = time.time() - start_time
+            self.idle_times.append(idle_time)
             return self.model.get_weights()
 
     def update_gradients(self, loss, outputs, N):
+        start_time = time.time()
         with self.lock:
+            idle_time = time.time() - start_time
+            self.idle_times.append(idle_time)
             self.losses.append(loss)
             self.model.update(self.learning_rate, self.momentum_coeff, outputs, N)
 
     def reset_losses(self):
         self.losses = []
 
-    def get_metrics(self, trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test):
+    def get_metrics(self, trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test, total_idle_time):
         train_loss = np.sum(self.losses)/num_images
         _, train_pred, _ = self.model.forward(trainX, trainY)
         train_accu = np.count_nonzero(train_pred == pureTrainY)/num_images
         test_loss, test_pred, _ = self.model.forward(testX, testY)
         test_loss = test_loss/num_test
         test_accu = np.count_nonzero(test_pred == pureTestY)/num_test
-        return train_loss, train_accu, test_loss, test_accu
+        return train_loss, train_accu, test_loss, test_accu, total_idle_time
+    
+    def get_idle_times(self):
+        return self.idle_times 
 
 class ParamWorker(multiprocessing.Process):
     def __init__(self, numConv, param_server, data, labels):
@@ -83,6 +94,8 @@ def train_epoch_data_parallel(param_server, num_conv, batch_size, trainX, trainY
     for worker in param_workers:
         worker.join()
     
+    total_idle_time = sum(param_server.get_idle_times())
 
-    return param_server.get_metrics(trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test)
+
+    return param_server.get_metrics(trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test, total_idle_time)
     
