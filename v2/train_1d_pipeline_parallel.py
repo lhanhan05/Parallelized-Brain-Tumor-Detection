@@ -3,7 +3,7 @@ import multiprocessing
 import time
 from queue import Queue
 
-global_idle_times = [] # Global list to store idle times
+idle_times_queue = multiprocessing.Queue()
 
 class PipelineServerOne():
     def __init__(self, model):
@@ -18,7 +18,8 @@ class PipelineServerOne():
             'relu': multiprocessing.Lock(),
             'conv': multiprocessing.Lock(),
         }
-        self.idle_times =  multiprocessing.Manager.list() # Track idle times
+        manager = multiprocessing.Manager()
+        self.idle_times = manager.list()
 
 
     def forward(self, stage, input):
@@ -97,9 +98,8 @@ class PipelineWorkerOne(multiprocessing.Process):
 
 
     def process_forwards(self):
-        start_time = time.time()
         for i in range(self.num_batches):
-            start_idle = time.time()  # Start measuring idle time
+            start_idle = time.time() 
 
             if self.stage == 'conv':
                 inputs = self.forward_queues['conv'].get()
@@ -108,7 +108,7 @@ class PipelineWorkerOne(multiprocessing.Process):
                 self.forward_queues['relu'].put(conv_out)
             elif self.stage == 'relu':
                 conv_out = self.forward_queues['relu'].get()
-                self.idle_time += time.time() - start_idle
+                self.idle_time += time.time() - start_idle                
                 acti_out = self.server.forward('relu', conv_out)
                 self.forward_queues['maxpool'].put(acti_out)
             elif self.stage == 'maxpool':
@@ -174,7 +174,8 @@ class PipelineWorkerOne(multiprocessing.Process):
         else:
             self.process_backwards()
 
-        self.server.idle_times.append(self.idle_time)
+        idle_times_queue.put(self.idle_time)
+
 
 def train_epoch_pipeline_parallel_1d(server, batch_size, learning_rate, momentum_coeff, trainX, trainY, pureTrainY, testX, testY, pureTestY):
     num_images = np.shape(trainX)[0]
@@ -230,5 +231,7 @@ def train_epoch_pipeline_parallel_1d(server, batch_size, learning_rate, momentum
         for worker in workers:
             worker.join()
 
-        total_idle_time = sum(server.get_idle_times())
+        total_idle_time = 0
+        while not idle_times_queue.empty():
+            total_idle_time += idle_times_queue.get()
         return server.get_metrics(trainX, trainY, pureTrainY, testX, testY, pureTestY, num_images, num_test, total_idle_time)
